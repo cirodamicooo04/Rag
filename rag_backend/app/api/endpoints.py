@@ -8,7 +8,7 @@ from app.core.config import UPLOAD_DIR
 from app.core.utils import sha256_file, deterministic_chunk_id
 from app.crud import crud_docs
 from app.db.database import get_db
-from app.services import ingester, chunker
+from app.services import ingester, chunker, indexer, query
 
 router = APIRouter()
 
@@ -49,7 +49,7 @@ async def ingest_documents(db: Session = Depends(get_db)):
 
     for doc in docs_to_process:
         try:
-            extracted_text = ingester.process_document(doc.file_path)
+            extracted_text = ingester.process_document(Path(doc.file_path))
 
             crud_docs.update_document_text(db, doc.file_hash, extracted_text, new_status="INGESTED")
         except Exception as e:
@@ -62,7 +62,7 @@ async def ingest_documents(db: Session = Depends(get_db)):
 
 @router.post("/chunk")
 async def make_chunks(db: Session = Depends(get_db)):
-    docs_to_process = (crud_docs.get_documents_by_status(db, status="INGESTED"))
+    docs_to_process = crud_docs.get_documents_by_status(db, status="INGESTED")
 
     for doc in docs_to_process:
         try:
@@ -82,4 +82,31 @@ async def make_chunks(db: Session = Depends(get_db)):
 
 @router.post("/index")
 async def index_chunks(db: Session = Depends(get_db)):
-    pass
+    chunks_to_index = crud_docs.get_unindexed_chunks(db)
+
+    if not chunks_to_index:
+        return {"message": "No chunks to index"}
+
+    try:
+        indexer.index(chunks_to_index)
+
+        for c in chunks_to_index:
+            crud_docs.mark_chunk_as_indexed(db, c.chunk_id)
+
+    except Exception as e:
+        print(f"Error indexing chunks: {e}")
+        raise HTTPException(status_code=500, detail="Error indexing chunks")
+
+    return {"message": "Chunks indexed successfully"}
+
+@router.post("/ask")
+async def ask_query(question: str):
+    if not question.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+    try:
+        answer = query.get_answer(question)
+        return {"answer": answer}
+    except Exception as e:
+        print(f"Error processing query: {e}")
+        raise HTTPException(status_code=500, detail="Error processing query")

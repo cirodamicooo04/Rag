@@ -22,7 +22,7 @@ def create_document(db, file_hash, file_name, file_path, file_type):
 
 
 def create_chunk(db, chunk_id, doc_hash, text, index):
-    chunk = Chunk(chunk_id,doc_hash,text,index)
+    chunk = Chunk(chunk_id=chunk_id,document_hash=doc_hash,text=text,chunk_index=index)
     db.add(chunk)
     db.commit()
     db.refresh(chunk)

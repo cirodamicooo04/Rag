@@ -1,14 +1,8 @@
-import json
-from chunk import Chunk
-from pathlib import Path
-
 from llama_index.core import Document, StorageContext, VectorStoreIndex
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 
 from app.core.config import COLLECTION_NAME
 from app.core.db_clients import qdrant_client
-from app.core.ml_models import embed_model
 from app.db.models import Chunk
 
 
