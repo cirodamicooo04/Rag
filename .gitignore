@@ -223,6 +223,7 @@ __marimo__/
 .idea/**/usage.statistics.xml
 .idea/**/dictionaries
 .idea/**/shelf
+rag_backend/.idea/**
 
 # AWS User-specific
 .idea/**/aws.xml
