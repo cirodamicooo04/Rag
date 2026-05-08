@@ -6,6 +6,9 @@ from app.db.models import Document
 def get_documents_by_status(db, status):
     return  db.query(Document).filter(Document.status == status).all()
 
+def get_all_documents(db):
+    return db.query(Document).all()
+
 def update_document_text(db, file_hash, extracted_text, new_status):
     db.query(Document).filter(Document.file_hash == file_hash).update({"text": extracted_text, "status": new_status})
     db.commit()

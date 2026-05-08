@@ -8,6 +8,7 @@ from app.core.config import UPLOAD_DIR
 from app.core.utils import sha256_file, deterministic_chunk_id
 from app.crud import crud_docs
 from app.db.database import get_db
+from app.schemas.document import DocumentDTO
 from app.services import ingester, chunker, indexer, query
 
 router = APIRouter()
@@ -110,3 +111,7 @@ async def ask_query(question: str):
     except Exception as e:
         print(f"Error processing query: {e}")
         raise HTTPException(status_code=500, detail="Error processing query")
+
+@router.get("/docs", response_model=list[DocumentDTO])
+async def get_document_status(db: Session = Depends(get_db)):
+    return crud_docs.get_all_documents(db)
