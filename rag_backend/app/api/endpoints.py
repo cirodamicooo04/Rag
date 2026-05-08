@@ -14,7 +14,6 @@ from app.services import ingester, chunker, indexer, query
 router = APIRouter()
 
 
-
 @router.post("/upload")
 async def upload_document(file: UploadFile = File(...) ,db: Session = Depends(get_db)):
     temp_path = UPLOAD_DIR / Path(file.filename).name

@@ -1,22 +1,10 @@
 from typing import List
-from llama_index.core import StorageContext, VectorStoreIndex
+from llama_index.core import VectorStoreIndex
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 
+from app.core.config import COLLECTION_NAME, TOP_K
 from app.core.db_clients import qdrant_client
 from app.core.ml_models import llm
-
-COLLECTION_NAME = "rag_collection"
-QDRANT_URL = "http://localhost:6333"
-
-LM_STUDIO_BASE_URL = "http://localhost:1234/v1"
-
-EMBEDDING_MODEL = "intfloat/multilingual-e5-base"
-LLM_MODEL = "gpt-3.5-turbo-1106" #Nome falso per ingannare la libreria
-
-TOP_K = 5
-
-def format_query(query: str) -> str:
-    return f"query: {query}"
 
 def build_prompt(context_chunks: List[str], query: str) -> str:
     context = "\n\n".join(context_chunks)
