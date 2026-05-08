@@ -6,5 +6,8 @@ services:
       - 6333:6333
       - 6334:6334
     volumes:
-      - /Users/cirodamico/qdrant_storage:/qdrant_storage:z
+      - qdrant_data:/qdrant_storage
     restart: on-failure
+  
+volumes:
+  qdrant_data:

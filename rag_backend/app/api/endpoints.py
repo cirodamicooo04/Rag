@@ -34,7 +34,7 @@ async def upload_document(file: UploadFile = File(...) ,db: Session = Depends(ge
         except Exception as e:
             print(f"Error while deleting temp file: {e}")
 
-        return {"message": "Document already exists"}
+        raise HTTPException(status_code=409,detail="Document already exists")
 
     extension = Path(temp_path).suffix.lower()
     new_document = crud_docs.create_document(db, file_hash, file.filename, str(temp_path), extension)
@@ -47,6 +47,7 @@ async def upload_document(file: UploadFile = File(...) ,db: Session = Depends(ge
 @router.post("/ingest")
 async def ingest_documents(db: Session = Depends(get_db)):
     docs_to_process = (crud_docs.get_documents_by_status(db, status="LOADED"))
+    error_while_ingesting = False
 
     for doc in docs_to_process:
         try:
@@ -54,9 +55,13 @@ async def ingest_documents(db: Session = Depends(get_db)):
 
             crud_docs.update_document_text(db, doc.file_hash, extracted_text, new_status="INGESTED")
         except Exception as e:
+            crud_docs.update_document_status(db, doc.file_hash, new_status="ERROR")
             print(f"Error processing document {doc.file_hash}: {e}")
+            error_while_ingesting = True
 
-            crud_docs.update_document_status(db, doc.file_hash , new_status="ERROR")
+    if error_while_ingesting:
+        raise HTTPException(status_code=500, detail="Error while ingesting some documents")
+
 
     return {"message": "Documents processed successfully"}
 
@@ -64,6 +69,7 @@ async def ingest_documents(db: Session = Depends(get_db)):
 @router.post("/chunk")
 async def make_chunks(db: Session = Depends(get_db)):
     docs_to_process = crud_docs.get_documents_by_status(db, status="INGESTED")
+    error_while_chunking = False
 
     for doc in docs_to_process:
         try:
@@ -76,8 +82,12 @@ async def make_chunks(db: Session = Depends(get_db)):
 
             crud_docs.update_document_status(db, doc.file_hash, new_status="CHUNKED")
         except Exception as e:
-            print(f"Error processing document {doc.file_hash}: {e}")
             crud_docs.update_document_status(db, doc.file_hash, new_status="ERROR_CHUNKING")
+            print(f"Error processing document {doc.file_hash}: {e}")
+            error_while_chunking = True
+
+    if error_while_chunking:
+        raise HTTPException(status_code=500, detail="Error while chunking some documents")
 
     return {"message": "Chunking completed"}
 
