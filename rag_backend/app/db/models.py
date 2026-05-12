@@ -26,3 +26,9 @@ class Chunk(Base):
 
     #Permette di fare chunks.document per risalire al file originale
     document = relationship("Document", back_populates="chunks")
+
+class Conversation(Base):
+    __tablename__ = 'conversations'
+    id = Column(Integer, primary_key=True, index=True)
+    question = Column(Text)
+    answer = Column(Text)

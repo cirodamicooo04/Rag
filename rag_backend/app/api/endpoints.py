@@ -13,6 +13,7 @@ from app.services import ingester, chunker, indexer, query
 
 router = APIRouter()
 
+last_conversation = {}
 
 @router.post("/upload")
 async def upload_document(file: UploadFile = File(...) ,db: Session = Depends(get_db)):
@@ -116,6 +117,10 @@ async def ask_query(question: str):
 
     try:
         answer = query.get_answer(question)
+
+        global last_conversation
+        last_conversation = {"question": question, "answer": answer}
+
         return {"answer": answer}
     except Exception as e:
         print(f"Error processing query: {e}")
@@ -124,3 +129,23 @@ async def ask_query(question: str):
 @router.get("/docs", response_model=list[DocumentDTO])
 async def get_document_status(db: Session = Depends(get_db)):
     return crud_docs.get_all_documents(db)
+
+@router.post("/save-last")
+async def save_last_conversation(db: Session = Depends(get_db)):
+    global last_conversation
+    crud_docs.save_conversation(db, last_conversation["question"], last_conversation["answer"])
+    return {"message": "Conversation saved successfully"}
+
+@router.get("/saved-conversations")
+async def get_saved_conversations(db: Session = Depends(get_db)):
+    return crud_docs.get_all_conversations(db)
+
+@router.delete("/delete-conversations/{id}")
+def delete_conversation(id: int, db: Session = Depends(get_db)):
+    conversation = crud_docs.get_conversation(id,db)
+
+    if conversation is None:
+        raise HTTPException(status_code=404, detail=f"Conversation with id: {id} not found")
+
+    crud_docs.delete_conversation(id,db)
+    return {"message": "Conversation deleted successfully"}

@@ -1,4 +1,4 @@
-from app.db.models import Chunk
+from app.db.models import Chunk, Conversation
 
 from app.db.models import Document
 
@@ -40,4 +40,22 @@ def get_unindexed_chunks(db):
 
 def mark_chunk_as_indexed(db, chunk_id):
     db.query(Chunk).filter(Chunk.chunk_id == chunk_id).update({"indexed": True})
+    db.commit()
+
+def save_conversation(db, user_query, response):
+    new_conv = Conversation(question=user_query, answer=response)
+    db.add(new_conv)
+    db.commit()
+    db.refresh(new_conv)
+    return new_conv
+
+def get_all_conversations(db):
+    return db.query(Conversation).all()
+
+def get_conversation(id, db):
+    return db.query(Conversation).filter(Conversation.id == id).first()
+
+
+def delete_conversation(id, db):
+    db.query(Conversation).filter(Conversation.id == id).delete()
     db.commit()
