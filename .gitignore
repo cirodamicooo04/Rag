@@ -305,3 +305,4 @@ http-client.private.env.json
 .DS_Store
 rag_backend/docs/*
 !rag_backend/docs/.gitkeep
+rag_backend/.env
