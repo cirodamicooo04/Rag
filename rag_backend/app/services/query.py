@@ -2,31 +2,11 @@ from typing import List
 from llama_index.core import VectorStoreIndex
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 
-from app.core.config import COLLECTION_NAME, TOP_K, STRUCTURED_PROMPT, GUARDRAILS_COLLECTION, SECURITY_TRESHOLD, \
-    SEMANTIC_SIMILARITY_CONTROL
+from app.core.config import COLLECTION_NAME, TOP_K, STRUCTURED_PROMPT, SEMANTIC_SIMILARITY_CONTROL, LLM_GUARD_CONTROL
 from app.core.db_clients import qdrant_client
 from app.core.ml_models import llm
+from app.guardrails.input import semantic_firewall, llm_guard
 
-def is_safe_query(query: str) -> bool:
-    normalized_query = query.lower().strip()
-
-    vector_store = QdrantVectorStore(client=qdrant_client,collection_name=GUARDRAILS_COLLECTION)
-    index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
-
-    retriever = index.as_retriever(similarity_top_k=1)
-
-    nodes = retriever.retrieve(f"query: {normalized_query}")
-
-    if not nodes:
-        return True
-
-    best_node = nodes[0]
-
-    if best_node.score > SECURITY_TRESHOLD:
-        print(f"Guardrail blocked query from score: {best_node.score:.3f}")
-        return False
-
-    return True
 
 def build_prompt(context_chunks: List[str], query: str) -> str:
     context = "\n\n".join(context_chunks)
@@ -83,9 +63,15 @@ RISPOSTA:
 
 
 def get_answer(user_query: str):
+    user_query = user_query.lower().strip()
+    
     if SEMANTIC_SIMILARITY_CONTROL:
-        if not is_safe_query(user_query):
-            return "Query blocked. The user query violates the security protocol."
+        if not semantic_firewall.is_safe_query(user_query):
+            return "Query blocked from semantic firewal. The user query violates the security protocol."
+
+    if LLM_GUARD_CONTROL:
+        if not llm_guard.is_safe(user_query):
+            return "Query blocked from LLM Guard. The user query violates the security protocol."
 
 
     vector_store = QdrantVectorStore(client=qdrant_client,collection_name=COLLECTION_NAME)
