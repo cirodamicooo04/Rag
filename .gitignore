@@ -306,3 +306,4 @@ http-client.private.env.json
 rag_backend/docs/*
 !rag_backend/docs/.gitkeep
 rag_backend/.env
+rag_backend/*.db

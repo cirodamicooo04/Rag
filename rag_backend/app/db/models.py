@@ -23,6 +23,13 @@ class Chunk(Base):
     chunk_index = Column(Integer)
     indexed = Column(Boolean, default=False)
     page = Column(Integer, default=0)
+    title = Column(String, nullable=True)
+    category = Column(String, nullable=True)
+    source_url = Column(String, nullable=True)
+    scope = Column(String, nullable=True)
+    scraping_date = Column(String)
+
+
 
     #Permette di fare chunks.document per risalire al file originale
     document = relationship("Document", back_populates="chunks")

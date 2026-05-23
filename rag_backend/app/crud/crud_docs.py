@@ -24,8 +24,8 @@ def create_document(db, file_hash, file_name, file_path, file_type):
     return document
 
 
-def create_chunk(db, chunk_id, doc_hash, text, index):
-    chunk = Chunk(chunk_id=chunk_id,document_hash=doc_hash,text=text,chunk_index=index)
+def create_chunk(db, chunk_id, doc_hash, text, index, title, scope, category, source_url, scraping_date):
+    chunk = Chunk(chunk_id=chunk_id,document_hash=doc_hash,text=text,chunk_index=index, title=title, scope=scope, category=category, source_url=source_url, scraping_date=scraping_date)
     db.add(chunk)
     db.commit()
     db.refresh(chunk)
@@ -59,3 +59,13 @@ def get_conversation(id, db):
 def delete_conversation(id, db):
     db.query(Conversation).filter(Conversation.id == id).delete()
     db.commit()
+
+def delete_dataset(db):
+    db.query(Document).delete()
+    db.query(Chunk).delete()
+    db.commit()
+
+
+def mark_chunk_as_quarantined(db, chunk_id):
+        db.query(Chunk).filter(Chunk.chunk_id == chunk_id).update({"status": "QUARANTINED" })
+        db.commit()

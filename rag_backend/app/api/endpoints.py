@@ -4,12 +4,15 @@ from pathlib import Path
 from fastapi import FastAPI, APIRouter, File, UploadFile, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.config import UPLOAD_DIR
+from app.core.config import UPLOAD_DIR, NORMALIZATION_DOCUMENT, LLAMA_GUARD_DOCUMENT_SCAN
 from app.core.utils import sha256_file, deterministic_chunk_id
 from app.crud import crud_docs
 from app.db.database import get_db
 from app.schemas.document import DocumentDTO
 from app.services import ingester, chunker, indexer, query
+from app.services.document_parser import remove_document_header, parse_document_metadata
+from app.guardrails.document.layers.normalizer import normalize_document_text
+from app.guardrails.document.layers.llm_guard import classify_chunk
 
 router = APIRouter()
 
@@ -53,6 +56,8 @@ async def ingest_documents(db: Session = Depends(get_db)):
     for doc in docs_to_process:
         try:
             extracted_text = ingester.process_document(Path(doc.file_path))
+            if NORMALIZATION_DOCUMENT:
+                extracted_text = normalize_document_text(extracted_text)
 
             crud_docs.update_document_text(db, doc.file_hash, extracted_text, new_status="INGESTED")
         except Exception as e:
@@ -74,12 +79,16 @@ async def make_chunks(db: Session = Depends(get_db)):
 
     for doc in docs_to_process:
         try:
-            chunks = chunker.semantic_chunk(doc.text)
+            document_metadata = parse_document_metadata(doc.text)
+            clean_document_text = remove_document_header(doc.text)
+
+            chunks = chunker.semantic_chunk(clean_document_text)
 
             for i, text_content in enumerate(chunks):
                 chunk_id = deterministic_chunk_id(doc.file_hash,0,i)
 
-                crud_docs.create_chunk(db,chunk_id=chunk_id, doc_hash=doc.file_hash, text=text_content, index=i)
+                crud_docs.create_chunk(db,chunk_id=chunk_id, doc_hash=doc.file_hash, text=text_content, index=i, title=document_metadata.get("title"), scope=document_metadata.get("scope"), category=document_metadata.get("category"), source_url=document_metadata.get("source_url"), scraping_date=document_metadata.get("scraping_date"))
+
 
             crud_docs.update_document_status(db, doc.file_hash, new_status="CHUNKED")
         except Exception as e:
@@ -95,11 +104,31 @@ async def make_chunks(db: Session = Depends(get_db)):
 @router.post("/index")
 async def index_chunks(db: Session = Depends(get_db)):
     chunks_to_index = crud_docs.get_unindexed_chunks(db)
+    quarantined_chunks_count = 0
 
     if not chunks_to_index:
         return {"message": "No chunks to index"}
 
     try:
+        safe_chunks = []
+
+        if LLAMA_GUARD_DOCUMENT_SCAN:
+            for c in chunks_to_index:
+                guard_decision = classify_chunk(c.text)
+                if not guard_decision.is_safe:
+                    crud_docs.mark_chunk_as_quarantined(db, c.chunk_id)
+                    quarantined_chunks_count += 1
+
+                    print(f"Chunk {c.chunk_id} marked as quarantined. - Score: {guard_decision.score}")
+                else:
+                    safe_chunks.append(c)
+
+            if not safe_chunks:
+                return {"message": "All chunks to index marked as quarantined. No chunks indexed."}
+
+            chunks_to_index = safe_chunks
+
+
         indexer.index(chunks_to_index)
 
         for c in chunks_to_index:
@@ -109,7 +138,7 @@ async def index_chunks(db: Session = Depends(get_db)):
         print(f"Error indexing chunks: {e}")
         raise HTTPException(status_code=500, detail="Error indexing chunks")
 
-    return {"message": "Chunks indexed successfully"}
+    return {"message": f"Chunks indexed successfully with {quarantined_chunks_count} quarantined chunks "}
 
 @router.post("/ask")
 async def ask_query(question: str):
@@ -150,3 +179,20 @@ def delete_conversation(id: int, db: Session = Depends(get_db)):
 
     crud_docs.delete_conversation(id,db)
     return {"message": "Conversation deleted successfully"}
+
+@router.post("/reset-dataset")
+def reset_dataset(db: Session = Depends(get_db)):
+    directory = Path(UPLOAD_DIR)
+    #Svuoto cartella docs
+    if directory.exists():
+        for elemento in directory.iterdir():
+            if elemento.name == ".gitkeep":
+                continue
+            elemento.unlink()
+
+    #Cancello tutti i documenti salvati
+    crud_docs.delete_dataset(db)
+
+    #Svuoto il dataset vettoriale
+    indexer.clean_index()
+    return {"message": "Dataset reset successfully"}

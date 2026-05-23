@@ -26,6 +26,30 @@ def split_sentences(text: str) -> List[str]:
 
     return all_sentences
 
+
+def split_long_text_by_tokens(text: str) -> List[str]:
+    token_ids = tokenizer.encode(text, add_special_tokens=False)
+
+    if len(token_ids) <= MAX_TOKENS:
+        return [text.strip()] if text.strip() else []
+
+    step = MAX_TOKENS - OVERLAP_TOKENS
+    if step <= 0:
+        step = MAX_TOKENS
+
+    chunks = []
+    for start in range(0, len(token_ids), step):
+        window = token_ids[start:start + MAX_TOKENS]
+        chunk = tokenizer.decode(window, skip_special_tokens=True).strip()
+        if chunk:
+            chunks.append(chunk)
+
+        if start + MAX_TOKENS >= len(token_ids):
+            break
+
+    return chunks
+
+
 def semantic_chunk(text: str) -> List[str]:
     #Splittiamo in ogni \n
     paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
@@ -41,6 +65,15 @@ def semantic_chunk(text: str) -> List[str]:
         for sentence in sentences:
             #Contiamo i token per ogni frase
             sentence_tokens = count_tokens(sentence)
+
+            if sentence_tokens > MAX_TOKENS:
+                if current_chunk:
+                    chunks.append(" ".join(current_chunk))
+                    current_chunk = []
+                    current_tokens = 0
+
+                chunks.extend(split_long_text_by_tokens(sentence))
+                continue
 
             #Se abbiamo superato i token massimi dobbiamo chiudere il chunk attuale
             if current_tokens + sentence_tokens > MAX_TOKENS:
@@ -58,12 +91,6 @@ def semantic_chunk(text: str) -> List[str]:
                     overlap_string = tokenizer.decode(overlap_tokens) #Li trasformiamo di nuovo in testo
                     current_chunk = [overlap_string] #Li mettiamo come punto di partenza per il prossimo chunk
                     current_tokens = count_tokens(overlap_string) #Aggiorniamo i token correnti
-                else:
-                    # frase singola enorme, la mettiamo in un solo chunk
-                    chunks.append(sentence)
-                    current_chunk = []
-                    current_tokens = 0
-                    continue
 
             # Altrimenti aggiungiamo normalmente al chunk corrente
             current_chunk.append(sentence)

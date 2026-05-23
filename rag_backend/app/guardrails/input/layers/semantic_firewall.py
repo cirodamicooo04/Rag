@@ -9,9 +9,9 @@ def is_safe_query(query: str) -> bool:
     vector_store = QdrantVectorStore(client=qdrant_client,collection_name=GUARDRAILS_COLLECTION)
     index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
 
-    retriever = index.as_retriever(similarity_top_k=1)
+    retriever = index.as_retriever(similarity_top_k=5)
 
-    nodes = retriever.retrieve(f"query: {query}")
+    nodes = retriever.retrieve(query)
 
     if not nodes:
         return True

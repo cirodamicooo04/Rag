@@ -1,5 +1,6 @@
 from llama_index.core import Document, StorageContext, VectorStoreIndex
 from llama_index.vector_stores.qdrant import QdrantVectorStore
+from qdrant_client.http.models import FilterSelector, Filter
 
 from app.core.config import COLLECTION_NAME
 from app.core.db_clients import qdrant_client
@@ -15,7 +16,12 @@ def index(chunks: list[Chunk]):
                      metadata={
                          "file_hash": c.document_hash,
                          "index": c.chunk_index,
-                         "page": c.page
+                         "page": c.page,
+                         "title": c.title,
+                         "category": c.category,
+                         "source_url": c.source_url,
+                         "scraping_date": c.scraping_date,
+                         "scope": c.scope
                      }))
 
     client = qdrant_client
@@ -28,3 +34,8 @@ def index(chunks: list[Chunk]):
     index = (VectorStoreIndex.from_documents(llama_docs, storage_context=storage_context, show_progress=True))
 
     return index
+
+def clean_index():
+    client = qdrant_client
+    #client.delete(collection_name=COLLECTION_NAME, points_selector=FilterSelector(filter=Filter(must=[])))
+    client.delete_collection(collection_name=COLLECTION_NAME)
