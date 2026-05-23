@@ -116,7 +116,7 @@ async def index_chunks(db: Session = Depends(get_db)):
             for c in chunks_to_index:
                 guard_decision = classify_chunk(c.text)
                 if not guard_decision.is_safe:
-                    crud_docs.mark_chunk_as_quarantined(db, c.chunk_id)
+                    crud_docs.update_document_status(db,c.document_hash,new_status="QUARANTINED")
                     quarantined_chunks_count += 1
 
                     print(f"Chunk {c.chunk_id} marked as quarantined. - Score: {guard_decision.score}")
