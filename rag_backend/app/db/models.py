@@ -22,6 +22,8 @@ class Chunk(Base):
     text = Column(Text)
     chunk_index = Column(Integer)
     indexed = Column(Boolean, default=False)
+    security_status = Column(String, default="PENDING")
+    security_reason = Column(String, nullable=True)
     page = Column(Integer, default=0)
     title = Column(String, nullable=True)
     category = Column(String, nullable=True)

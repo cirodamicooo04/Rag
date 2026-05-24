@@ -1,18 +1,19 @@
 import shutil
 from pathlib import Path
 
-from fastapi import FastAPI, APIRouter, File, UploadFile, Depends, HTTPException
+from fastapi import APIRouter, File, UploadFile, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.config import UPLOAD_DIR, NORMALIZATION_DOCUMENT, LLAMA_GUARD_DOCUMENT_SCAN
+from app.core.config import UPLOAD_DIR, NORMALIZATION_DOCUMENT, DOCUMENT_CLASSIFIER
 from app.core.utils import sha256_file, deterministic_chunk_id
 from app.crud import crud_docs
 from app.db.database import get_db
 from app.schemas.document import DocumentDTO
+from app.schemas.quarantined_documents_detail import QuarantinedDocumentDTO, QuarantinedChunksDTO
 from app.services import ingester, chunker, indexer, query
 from app.services.document_parser import remove_document_header, parse_document_metadata
 from app.guardrails.document.layers.normalizer import normalize_document_text
-from app.guardrails.document.layers.llm_guard import classify_chunk
+from app.guardrails.document.layers.document_classifier import DocumentCategory, classify_document
 
 router = APIRouter()
 
@@ -104,41 +105,55 @@ async def make_chunks(db: Session = Depends(get_db)):
 @router.post("/index")
 async def index_chunks(db: Session = Depends(get_db)):
     chunks_to_index = crud_docs.get_unindexed_chunks(db)
-    quarantined_chunks_count = 0
+
+    indexed_count = 0
+    quarantined_count = 0
+    affected_documents = set()
 
     if not chunks_to_index:
         return {"message": "No chunks to index"}
 
     try:
         safe_chunks = []
+        for chunk in chunks_to_index:
+            affected_documents.add(chunk.document_hash)
+            if DOCUMENT_CLASSIFIER:
+                guard_decision = classify_document(chunk.text)
+                if guard_decision.category in {DocumentCategory.MALICIOUS, DocumentCategory.UNKNOWN}:
+                    crud_docs.mark_chunk_as_quarantined(
+                        db,
+                        chunk,
+                        reason=guard_decision.reason
+                    )
 
-        if LLAMA_GUARD_DOCUMENT_SCAN:
-            for c in chunks_to_index:
-                guard_decision = classify_chunk(c.text)
-                if not guard_decision.is_safe:
-                    crud_docs.update_document_status(db,c.document_hash,new_status="QUARANTINED")
-                    quarantined_chunks_count += 1
+                    quarantined_count += 1
+                    print(
+                        f"Chunk {chunk.chunk_id} quarantined. "
+                        f"Confidence={guard_decision.confidence}, "
+                    )
+                    continue
 
-                    print(f"Chunk {c.chunk_id} marked as quarantined. - Score: {guard_decision.score}")
-                else:
-                    safe_chunks.append(c)
+            safe_chunks.append(chunk)
 
-            if not safe_chunks:
-                return {"message": "All chunks to index marked as quarantined. No chunks indexed."}
-
-            chunks_to_index = safe_chunks
-
-
-        indexer.index(chunks_to_index)
-
-        for c in chunks_to_index:
-            crud_docs.mark_chunk_as_indexed(db, c.chunk_id)
+        if safe_chunks:
+            indexer.index(safe_chunks)
+            for chunk in safe_chunks:
+                crud_docs.mark_chunk_as_indexed(db, chunk)
+                indexed_count += 1
 
     except Exception as e:
         print(f"Error indexing chunks: {e}")
         raise HTTPException(status_code=500, detail="Error indexing chunks")
+    finally:
+        for document_hash in affected_documents:
+            crud_docs.update_document_index_status(db, document_hash)
 
-    return {"message": f"Chunks indexed successfully with {quarantined_chunks_count} quarantined chunks "}
+    return {
+        "message": "Indexing completed",
+        "indexed_chunks": indexed_count,
+        "quarantined_chunks": quarantined_count,
+        "affected_documents": len(affected_documents),
+    }
 
 @router.post("/ask")
 async def ask_query(question: str):
@@ -156,9 +171,51 @@ async def ask_query(question: str):
         print(f"Error processing query: {e}")
         raise HTTPException(status_code=500, detail="Error processing query")
 
-@router.get("/docs", response_model=list[DocumentDTO])
+@router.get("/docs")
 async def get_document_status(db: Session = Depends(get_db)):
-    return crud_docs.get_all_documents(db)
+    docs = crud_docs.get_all_documents(db)
+
+    result = []
+
+    for doc in docs:
+        total_chunks = len(doc.chunks)
+        indexed_chunks = sum(1 for chunk in doc.chunks if chunk.indexed)
+        quarantined_chunks = sum(1 for chunk in doc.chunks if chunk.security_status == "QUARANTINED")
+
+        result.append(
+            DocumentDTO(file_hash=doc.file_hash,
+                        file_name=doc.file_name,
+                        file_type=doc.file_type,
+                        status=doc.status,
+                        total_chunks=total_chunks,
+                        indexed_chunks=indexed_chunks,
+                        quarantined_chunks=quarantined_chunks
+            )
+        )
+
+    return result
+
+@router.get("/docs/{doc_hash}/security_summary")
+async def get_document_security_summary(doc_hash: str, db: Session = Depends(get_db)):
+    document = crud_docs.get_document_by_hash(db, doc_hash)
+    if not document:
+        raise HTTPException(status_code=404, detail=f"Document with hash: {doc_hash} not found")
+
+    chunks = crud_docs.get_quarantined_chunks_by_doc_hash(db, doc_hash)
+
+    return QuarantinedDocumentDTO(
+        file_hash=doc_hash,
+        quarantined_chunks=[
+            QuarantinedChunksDTO(
+                chunk_id=chunk.chunk_id,
+                chunk_index=chunk.chunk_index,
+                security_status=chunk.security_status,
+                security_reason=chunk.security_reason,
+                text_preview=chunk.text[:300]
+            )
+            for chunk in chunks
+        ]
+    )
 
 @router.post("/save-last")
 async def save_last_conversation(db: Session = Depends(get_db)):
@@ -196,3 +253,19 @@ def reset_dataset(db: Session = Depends(get_db)):
     #Svuoto il dataset vettoriale
     indexer.clean_index()
     return {"message": "Dataset reset successfully"}
+
+@router.delete("/delete-document/{doc_hash}")
+def delete_document(doc_hash: str,db: Session = Depends(get_db)):
+    document = crud_docs.get_document_by_hash(db, doc_hash)
+    if not document:
+        raise HTTPException(status_code=404, detail=f"Document with hash: {doc_hash} not found")
+
+    indexed_chunks = crud_docs.get_indexed_chunks_by_doc_hash(db, doc_hash)
+
+    try:
+        if indexed_chunks: #Ci sono chunks indicizzati
+            indexer.remove_index(doc_hash) #Rimuovo dall'index
+        crud_docs.delete_document(db, doc_hash)
+        return {"message": "Document deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting document: {e}")

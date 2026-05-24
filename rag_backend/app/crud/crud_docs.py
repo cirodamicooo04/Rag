@@ -36,10 +36,10 @@ def update_document_status(db, file_hash, new_status):
     db.commit()
 
 def get_unindexed_chunks(db):
-    return db.query(Chunk).filter(Chunk.indexed == False).all()
+    return db.query(Chunk).filter(Chunk.indexed == False).filter(Chunk.security_status == "PENDING").all()
 
-def mark_chunk_as_indexed(db, chunk_id):
-    db.query(Chunk).filter(Chunk.chunk_id == chunk_id).update({"indexed": True})
+def mark_chunk_as_indexed(db, chunk):
+    db.query(Chunk).filter(Chunk.chunk_id == chunk.chunk_id).update({"indexed": True, "security_status": "SAFE"})
     db.commit()
 
 def save_conversation(db, user_query, response):
@@ -66,6 +66,59 @@ def delete_dataset(db):
     db.commit()
 
 
-def mark_chunk_as_quarantined(db, chunk_id):
-        db.query(Chunk).filter(Chunk.chunk_id == chunk_id).update({"status": "QUARANTINED" })
+def mark_chunk_as_quarantined(db, chunk, reason):
+    db.query(Chunk).filter(Chunk.chunk_id == chunk.chunk_id).update({"indexed": False,"security_status": "QUARANTINED","security_reason": reason})
+    db.commit()
+
+def update_document_index_status(db, document_hash):
+    chunks = (db.query(Chunk).filter(Chunk.document_hash == document_hash).all())
+
+    document = (db.query(Document).filter(Document.file_hash == document_hash).first())
+
+    if not document:
+        return None
+
+    if not chunks:
+        document.status = "CHUNKED"
         db.commit()
+        db.refresh(document)
+        return document
+
+    indexed_count = sum(1 for c in chunks if c.indexed)
+    quarantined_count = sum(1 for c in chunks if c.security_status == "QUARANTINED")
+    pending_count = sum(1 for c in chunks if c.security_status == "PENDING")
+
+    if pending_count > 0:
+        document.status = "CHUNKED"
+
+    elif indexed_count == len(chunks):
+        document.status = "INDEXED"
+
+    elif indexed_count > 0 and quarantined_count > 0:
+        document.status = "PARTIALLY_INDEXED"
+
+    elif indexed_count == 0 and quarantined_count > 0:
+        document.status = "REJECTED_SECURITY"
+
+    else:
+        document.status = "CHUNKED"
+
+    db.commit()
+    db.refresh(document)
+
+    return document
+
+
+def get_indexed_chunks_by_doc_hash(db, doc_hash):
+    return db.query(Chunk).filter(Chunk.document_hash == doc_hash).filter(Chunk.indexed == 1).all()
+
+
+def delete_document(db, doc_hash):
+    document = db.query(Document).filter(Document.file_hash == doc_hash).first()
+    if document:
+        db.delete(document)
+    db.commit()
+
+
+def get_quarantined_chunks_by_doc_hash(db, doc_hash):
+    return db.query(Chunk).filter(Chunk.document_hash == doc_hash).filter(Chunk.security_status == "QUARANTINED").all()

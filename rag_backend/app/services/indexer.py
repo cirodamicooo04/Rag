@@ -1,6 +1,6 @@
 from llama_index.core import Document, StorageContext, VectorStoreIndex
 from llama_index.vector_stores.qdrant import QdrantVectorStore
-from qdrant_client.http.models import FilterSelector, Filter
+from qdrant_client.http.models import FilterSelector, Filter, PointIdsList, MatchValue, FieldCondition
 
 from app.core.config import COLLECTION_NAME
 from app.core.db_clients import qdrant_client
@@ -39,3 +39,7 @@ def clean_index():
     client = qdrant_client
     #client.delete(collection_name=COLLECTION_NAME, points_selector=FilterSelector(filter=Filter(must=[])))
     client.delete_collection(collection_name=COLLECTION_NAME)
+
+def remove_index(file_hash: str):
+    client = qdrant_client
+    client.delete(collection_name=COLLECTION_NAME, points_selector=Filter(must=[FieldCondition(key="file_hash",match=MatchValue(value=file_hash))]))
