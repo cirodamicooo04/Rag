@@ -39,7 +39,7 @@ def get_unindexed_chunks(db):
     return db.query(Chunk).filter(Chunk.indexed == False).filter(Chunk.security_status == "PENDING").all()
 
 def mark_chunk_as_indexed(db, chunk):
-    db.query(Chunk).filter(Chunk.chunk_id == chunk.chunk_id).update({"indexed": True, "security_status": "SAFE"})
+    db.query(Chunk).filter(Chunk.chunk_id == chunk.chunk_id).update({"indexed": True, "security_status": "SAFE", "security_reason": "Passed scan or manually approved"})
     db.commit()
 
 def save_conversation(db, user_query, response):
@@ -122,3 +122,7 @@ def delete_document(db, doc_hash):
 
 def get_quarantined_chunks_by_doc_hash(db, doc_hash):
     return db.query(Chunk).filter(Chunk.document_hash == doc_hash).filter(Chunk.security_status == "QUARANTINED").all()
+
+
+def get_chunk_by_id(db, chunk_id):
+    return db.query(Chunk).filter(Chunk.chunk_id == chunk_id).first()

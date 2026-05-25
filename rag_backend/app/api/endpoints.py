@@ -211,11 +211,56 @@ async def get_document_security_summary(doc_hash: str, db: Session = Depends(get
                 chunk_index=chunk.chunk_index,
                 security_status=chunk.security_status,
                 security_reason=chunk.security_reason,
-                text_preview=chunk.text[:300]
+                text_preview=chunk.text
             )
             for chunk in chunks
         ]
     )
+
+@router.post("/chunks/{chunk_id}/approve")
+async def approve_chunk(chunk_id: str, db: Session = Depends(get_db)):
+    chunk = crud_docs.get_chunk_by_id(db, chunk_id)
+    if not chunk:
+        raise HTTPException(status_code=404, detail=f"Chunk with id: {chunk_id} not found")
+
+    if chunk.security_status != "QUARANTINED":
+        raise HTTPException(status_code=400, detail=f"Chunk with id: {chunk_id} is not quarantined")
+
+    try:
+        indexer.index([chunk])
+        crud_docs.mark_chunk_as_indexed(db, chunk)
+        crud_docs.update_document_index_status(db, chunk.document_hash) #Aggiorno lo stato del documento padre
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error indexing chunk: {e}")
+
+    return {"message": "Chunk approved and indexed successfully"}
+
+@router.post("/docs/{doc_hash}/approve")
+async def approve_document(doc_hash: str, db: Session = Depends(get_db)):
+    document = crud_docs.get_document_by_hash(db, doc_hash)
+    if not document:
+        raise HTTPException(status_code=404, detail=f"Document with hash: {doc_hash} not found")
+
+    if document.status not in ["PARTIALLY_INDEXED","REJECTED_SECURITY"]:
+        raise HTTPException(status_code=400, detail=f"Document with hash: {doc_hash} is not partially indexed or rejected security")
+
+    doc_chunks = document.chunks
+    chunks_to_approve = [chunk for chunk in doc_chunks if chunk.security_status == "QUARANTINED"]
+
+    if not chunks_to_approve:
+        raise HTTPException(status_code=400, detail=f"Document with hash: {doc_hash} has no quarantined chunks")
+
+    try:
+        indexer.index(chunks_to_approve)
+        for chunk in chunks_to_approve:
+            crud_docs.mark_chunk_as_indexed(db, chunk)
+        crud_docs.update_document_index_status(db, doc_hash)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error indexing chunks: {e}")
+
+    return {"message": "Document approved and indexed successfully"}
+
+
 
 @router.post("/save-last")
 async def save_last_conversation(db: Session = Depends(get_db)):
