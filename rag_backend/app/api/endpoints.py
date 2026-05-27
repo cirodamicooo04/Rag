@@ -171,6 +171,19 @@ async def ask_query(question: str):
         print(f"Error processing query: {e}")
         raise HTTPException(status_code=500, detail="Error processing query")
 
+@router.post("/ask-debug")
+async def ask_query_debug(question: str):
+    if not question.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+    try:
+        answer = query.get_answer(question, debug=True)
+
+        return {"answer": answer}
+    except Exception as e:
+        print(f"Error processing query: {e}")
+        raise HTTPException(status_code=500, detail="Error processing query")
+
 @router.get("/docs")
 async def get_document_status(db: Session = Depends(get_db)):
     docs = crud_docs.get_all_documents(db)

@@ -72,29 +72,6 @@ RISPOSTA:
 """.strip()
 
 
-def build_prompt(context_chunks: List[str], query: str) -> str:
-    context = "\n\n".join(context_chunks)
-    return f"""
-Sei l'assistente virtuale ufficiale del Corso di Studi / Laurea in Informatica dell'Università della Calabria.
-Il tuo compito è fornire informazioni precise, aggiornate e cordiali basandoti esclusivamente sui documenti forniti.
-
-Regole obbligatorie:
-1. Non utilizzare conoscenze esterne.
-2. Non inventare date o teorie.
-3. Se il contesto è insufficiente, dichiaralo esplicitamente.
-4. Se la domanda è generica, fornisci un riassunto dei punti principali presenti nel contesto
-5. Mantieni struttura chiara e tono analitico.
-
-CONTESTO:
-{context}
-
-DOMANDA:
-{query}
-
-RISPOSTA:
-""".strip()
-
-
 def build_untrusted_context_prompt(context_chunk: List[str], query: str) -> str:
     context = "\n\n".join(context_chunk)
     return f"""
@@ -137,8 +114,19 @@ def build_untrusted_context_prompt(context_chunk: List[str], query: str) -> str:
 RISPOSTA:    
 """.strip()
 
+def serialize_retrieved_node(node_with_score, rank: int):
+    node = node_with_score.node
 
-def get_answer(user_query: str):
+    return {
+        "rank": rank,
+        "score": getattr(node_with_score, "score", None),
+        "node_id": getattr(node, "node_id", None),
+        "text": node.text,
+        "metadata": node.metadata or {}
+    }
+
+
+def get_answer(user_query: str, debug: bool = False):
     input_guardrail_result = validate_input_query(user_query)
 
     if input_guardrail_result.decision == InputGuardrailDecision.BLOCK:
@@ -172,5 +160,15 @@ def get_answer(user_query: str):
     if output_guardrail_result.decision == OutputGuardrailDecision.BLOCK:
         # Solo in fase di sviluppo per eventuali misurazioni, da sostituire con safe refusal
         return f"Non posso soddisfare questa richiesta. Blocked by: {output_guardrail_result.blocked_by}."
+
+    if debug:
+        retrieved_context = [serialize_retrieved_node(node_with_score, rank) for rank, node_with_score in enumerate(nodes, start=1)]
+
+        return {
+            "answer": response.text,
+            "original_query": user_query,
+            "final_query": user_final_query,
+            "retrieved_context": retrieved_context
+        }
 
     return response.text
