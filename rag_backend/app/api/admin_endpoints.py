@@ -10,14 +10,13 @@ from app.crud import crud_docs
 from app.db.database import get_db
 from app.schemas.document import DocumentDTO
 from app.schemas.quarantined_documents_detail import QuarantinedDocumentDTO, QuarantinedChunksDTO
+from app.security.auth_guard import require_role, get_current_user
 from app.services import ingester, chunker, indexer, query
 from app.services.document_parser import remove_document_header, parse_document_metadata
 from app.guardrails.document.layers.normalizer import normalize_document_text
 from app.guardrails.document.layers.document_classifier import DocumentCategory, classify_document
 
-router = APIRouter()
-
-last_conversation = {}
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role("ADMIN"))])
 
 
 @router.post("/upload")
@@ -155,29 +154,13 @@ async def index_chunks(db: Session = Depends(get_db)):
         "affected_documents": len(affected_documents),
     }
 
-@router.post("/ask")
-async def ask_query(question: str):
-    if not question.strip():
-        raise HTTPException(status_code=400, detail="Query cannot be empty")
-
-    try:
-        answer = query.get_answer(question)
-
-        global last_conversation
-        last_conversation = {"question": question, "answer": answer}
-
-        return {"answer": answer}
-    except Exception as e:
-        print(f"Error processing query: {e}")
-        raise HTTPException(status_code=500, detail="Error processing query")
-
 @router.post("/ask-debug")
-async def ask_query_debug(question: str):
+async def ask_query_debug(question: str, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     if not question.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
     try:
-        answer = query.get_answer(question, debug=True)
+        answer = query.get_answer(user_query=question,user=user, db=db , debug=True)
 
         return {"answer": answer}
     except Exception as e:
@@ -208,7 +191,7 @@ async def get_document_status(db: Session = Depends(get_db)):
 
     return result
 
-@router.get("/docs/{doc_hash}/security_summary")
+@router.get("/docs/{doc_hash}/security-summary")
 async def get_document_security_summary(doc_hash: str, db: Session = Depends(get_db)):
     document = crud_docs.get_document_by_hash(db, doc_hash)
     if not document:
@@ -275,26 +258,6 @@ async def approve_document(doc_hash: str, db: Session = Depends(get_db)):
 
 
 
-@router.post("/save-last")
-async def save_last_conversation(db: Session = Depends(get_db)):
-    global last_conversation
-    crud_docs.save_conversation(db, last_conversation["question"], last_conversation["answer"])
-    return {"message": "Conversation saved successfully"}
-
-@router.get("/saved-conversations")
-async def get_saved_conversations(db: Session = Depends(get_db)):
-    return crud_docs.get_all_conversations(db)
-
-@router.delete("/delete-conversations/{id}")
-def delete_conversation(id: int, db: Session = Depends(get_db)):
-    conversation = crud_docs.get_conversation(id,db)
-
-    if conversation is None:
-        raise HTTPException(status_code=404, detail=f"Conversation with id: {id} not found")
-
-    crud_docs.delete_conversation(id,db)
-    return {"message": "Conversation deleted successfully"}
-
 @router.post("/reset-dataset")
 def reset_dataset(db: Session = Depends(get_db)):
     directory = Path(UPLOAD_DIR)
@@ -312,7 +275,7 @@ def reset_dataset(db: Session = Depends(get_db)):
     indexer.clean_index()
     return {"message": "Dataset reset successfully"}
 
-@router.delete("/delete-document/{doc_hash}")
+@router.delete("/documents/{doc_hash}")
 def delete_document(doc_hash: str,db: Session = Depends(get_db)):
     document = crud_docs.get_document_by_hash(db, doc_hash)
     if not document:
@@ -327,3 +290,29 @@ def delete_document(doc_hash: str,db: Session = Depends(get_db)):
         return {"message": "Document deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting document: {e}")
+
+
+@router.get("/logs")
+async def get_logs(db: Session = Depends(get_db)):
+    logs = crud_docs.get_logs(db)
+    return logs
+
+@router.get("/logs/{id}")
+async def get_log(id: int, db: Session = Depends(get_db)):
+    log = crud_docs.get_log_by_id(db, id)
+    if not log:
+        raise HTTPException(status_code=404, detail=f"Log with id: {id} not found")
+    return log
+
+@router.delete("/logs")
+async def clear_logs(db: Session = Depends(get_db)):
+    crud_docs.clear_logs(db)
+    return {"message": "Logs cleared successfully"}
+
+@router.delete("/logs/{id}")
+async def delete_log(id: int, db: Session = Depends(get_db)):
+    log = crud_docs.get_log_by_id(db, id)
+    if not log:
+        raise HTTPException(status_code=404, detail=f"Log with id: {id} not found")
+    crud_docs.delete_log(id, db)
+    return {"message": "Log deleted successfully"}

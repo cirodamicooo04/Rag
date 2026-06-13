@@ -1,10 +1,12 @@
 from typing import List
 from llama_index.core import VectorStoreIndex
 from llama_index.vector_stores.qdrant import QdrantVectorStore
+from sqlalchemy.orm import Session
 
 from app.core.config import COLLECTION_NAME, TOP_K, STRUCTURED_PROMPT, UNTRUSTED_CONTEXT_SYSTEM_PROMPT
 from app.core.db_clients import qdrant_client
 from app.core.ml_models import llm
+from app.crud.crud_docs import save_blocked_request
 from app.guardrails.input.input_policy import InputGuardrailDecision
 from app.guardrails.input.input_orchestrator import validate_input_query
 from app.guardrails.output.output_orchestrator import validate_output
@@ -126,10 +128,26 @@ def serialize_retrieved_node(node_with_score, rank: int):
     }
 
 
-def get_answer(user_query: str, debug: bool = False):
+def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
     input_guardrail_result = validate_input_query(user_query)
+    if user is None:
+        user_id = "anonymous"
+    else:
+        user_id = user.get("sub")
 
     if input_guardrail_result.decision == InputGuardrailDecision.BLOCK:
+        print(f"Blocked by {input_guardrail_result.blocked_by}, reason: {input_guardrail_result.reasons}.")
+
+        save_blocked_request(
+            db=db,
+            user_id=user_id,
+            original_query=user_query,
+            final_query=input_guardrail_result.final_text,
+            blocked_stage="input guardrail",
+            blocked_by=input_guardrail_result.blocked_by,
+            reason=input_guardrail_result.reasons
+        )
+
         #Solo in fase di sviluppo per eventuali misurazioni, da sostituire con safe refusal
         return f"Non posso soddisfare questa richiesta. Blocked by: {input_guardrail_result.blocked_by}."
 
@@ -158,6 +176,16 @@ def get_answer(user_query: str, debug: bool = False):
     output_guardrail_result = validate_output(model_output=response.text, context=context_chunks)
 
     if output_guardrail_result.decision == OutputGuardrailDecision.BLOCK:
+        print(f"Blocked by: {output_guardrail_result.blocked_by}, reason: {output_guardrail_result.reason}.")
+        save_blocked_request(
+            db=db,
+            user_id=user_id,
+            original_query=user_query,
+            final_query=None,
+            blocked_stage="output guardrail",
+            blocked_by=output_guardrail_result.blocked_by,
+            reason=output_guardrail_result.reason
+        )
         # Solo in fase di sviluppo per eventuali misurazioni, da sostituire con safe refusal
         return f"Non posso soddisfare questa richiesta. Blocked by: {output_guardrail_result.blocked_by}."
 

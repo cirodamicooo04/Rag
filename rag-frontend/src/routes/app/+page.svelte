@@ -1,0 +1,368 @@
+<script>
+    import {Alert, Badge, Button, Input, Modal, ModalBody, ModalFooter, ModalHeader} from "@sveltestrap/sveltestrap"
+    import {ask} from "$lib/api/ask.js"
+    import {save_conversation} from "$lib/api/conversation.js"
+
+    let query = $state("")
+    let messages = $state([])
+    let sequence_number = $state(0)
+
+    let loading = $state(false)
+    let error = $state(null)
+
+    //modal
+    let modalOpen = $state(false);
+    const toggle = () => (modalOpen = !modalOpen);
+
+    let conversation_title = $state("")
+    let saving_conversations_loading = $state(false)
+    let saving_conversations_error = $state(null)
+    let saving_conversations_success = $state(null)
+
+    async function sendQuery() {
+        if (query.trim() === "") return
+
+        const userQuery = query.trim()
+        query = ""
+
+        sequence_number += 1
+        messages.push({role: "user", content: userQuery, sequence_number: sequence_number})
+        loading = true
+        error = null
+        saving_conversations_success = null
+
+        try {
+            const response = await ask(userQuery)
+            sequence_number += 1
+            messages.push({
+                role: "assistant",
+                variant: "answer",
+                content: response.answer,
+                sequence_number: sequence_number
+            })
+
+        } catch (e) {
+            error = e.message
+            messages.push({
+                role: "assistant",
+                variant: "error",
+                content: "Non sono riuscito a generare una risposta. Riprova tra poco.",
+            })
+            console.error(e)
+
+        } finally {
+            loading = false
+        }
+    }
+
+    async function saveConversation(){
+        if (messages.length === 0) return
+        const messagesToSave = messages.filter((message) => message.variant !== "error")
+
+        if (messagesToSave.length === 0) return
+
+        saving_conversations_loading = true
+        saving_conversations_error = null
+        saving_conversations_success = null
+
+        try {
+            await save_conversation(conversation_title, messagesToSave)
+            saving_conversations_success = "Conversation saved successfully."
+        } catch (e){
+            saving_conversations_error = e.message
+            console.error(e)
+        } finally {
+            saving_conversations_loading = false
+            toggle()
+        }
+
+    }
+</script>
+
+<Modal isOpen={modalOpen} {toggle}>
+    <ModalHeader toggle={toggle}>Insert a name for the conversation</ModalHeader>
+    <ModalBody>
+        <Input bind:value={conversation_title} placeholder="Conversation title" minlength="3" maxlength="50"/>
+    </ModalBody>
+
+    <ModalFooter>
+        <Button color="primary" onclick={saveConversation} disabled={conversation_title.trim().length < 3 || conversation_title.trim().length > 50 }>Save</Button>
+        <Button color="danger" onclick={toggle}>Cancel</Button>
+    </ModalFooter>
+</Modal>
+
+<section class="chat-page">
+    <header class="chat-header">
+        <div>
+            <p class="eyebrow">Chat</p>
+            <h1>Assistente documentale</h1>
+        </div>
+
+        <div class="chat-actions">
+            <div class="thinking-slot">
+                {#if loading}
+                    <Badge color="secondary" pill>Sto pensando...</Badge>
+                {/if}
+            </div>
+
+            <Button
+                color="primary"
+                disabled={messages.length === 0 || saving_conversations_loading || loading}
+                onclick={toggle}
+            >
+                {saving_conversations_loading ? "Saving..." : "Save conversation"}
+            </Button>
+
+            <div class="save-feedback" aria-live="polite">
+                {#if saving_conversations_success}
+                    <span class="save-success">{saving_conversations_success}</span>
+                {:else if saving_conversations_error}
+                    <span class="save-error">{saving_conversations_error}</span>
+                {/if}
+            </div>
+        </div>
+    </header>
+
+    <div class="message-container">
+        {#if messages.length === 0}
+            <div class="empty-state">
+                <h2>Inizia una conversazione</h2>
+                <p>Fai qualsiasi domanda riguardante il corso di studi in informatica.</p>
+            </div>
+        {:else}
+            {#each messages as message}
+                <article class:user-row={message.role === "user"} class="message-row">
+                    <div class:user-avatar={message.role === "user"} class="message-avatar">
+                        {message.role === "user" ? "TU" : "AI"}
+                    </div>
+
+                    <div class="message-body">
+                        <div class:user-meta={message.role === "user"} class="message-meta">
+                            <strong>{message.role === "user" ? "Tu" : "Assistente"}</strong>
+
+                            {#if message.variant === "error"}
+                                <Badge color="danger" pill>Errore</Badge>
+                            {:else if message.role === "assistant"}
+                                <Badge color="light" pill>Bot</Badge>
+                            {/if}
+                        </div>
+
+                        {#if message.variant === "error"}
+                            <Alert color="danger" fade={false}>
+                                <strong>Errore nella risposta del bot.</strong>
+                                <p>{message.content}</p>
+                            </Alert>
+                        {:else}
+                            <div class:user-bubble={message.role === "user"} class="message-bubble">
+                                {message.content}
+                            </div>
+                        {/if}
+                    </div>
+                </article>
+            {/each}
+        {/if}
+    </div>
+
+    <form
+        class="composer"
+        onsubmit={(event) => {
+            event.preventDefault()
+            sendQuery()
+        }}
+    >
+        <div class="composer-input">
+            <Input
+                bind:value={query}
+                disabled={loading}
+                placeholder="Scrivi una domanda sui documenti..."
+                type="text"
+            />
+        </div>
+
+        <Button color="dark" disabled={loading || query.trim() === ""} type="submit">
+            {loading ? "Invio..." : "Invia"}
+        </Button>
+    </form>
+</section>
+
+<style>
+    .chat-page {
+        display: flex;
+        height: 100%;
+        min-height: 0;
+        flex-direction: column;
+    }
+
+    .chat-header {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .chat-actions {
+        display: flex;
+        width: 220px;
+        flex: 0 0 220px;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.45rem;
+    }
+
+    .thinking-slot {
+        min-height: 24px;
+    }
+
+    .save-feedback {
+        min-height: 18px;
+        max-width: 220px;
+        font-size: 0.78rem;
+        line-height: 1.2;
+        text-align: right;
+    }
+
+    .save-success {
+        color: #198754;
+    }
+
+    .save-error {
+        color: #b42318;
+    }
+
+    .eyebrow {
+        margin: 0 0 0.35rem;
+        color: #6b7280;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    h1 {
+        margin: 0;
+        color: #111827;
+        font-size: 1.65rem;
+        font-weight: 750;
+    }
+
+    .message-container {
+        display: flex;
+        min-height: 0;
+        flex: 1;
+        flex-direction: column;
+        gap: 1rem;
+        overflow: auto;
+        padding-right: 0.25rem;
+    }
+
+    .empty-state {
+        display: grid;
+        height: 100%;
+        min-height: 260px;
+        place-content: center;
+        color: #6b7280;
+        text-align: center;
+    }
+
+    .empty-state h2 {
+        margin: 0 0 0.5rem;
+        color: #111827;
+        font-size: 1.2rem;
+    }
+
+    .empty-state p {
+        max-width: 460px;
+        margin: 0;
+    }
+
+    .message-row {
+        display: flex;
+        max-width: 82%;
+        gap: 0.75rem;
+        align-items: flex-start;
+    }
+
+    .message-row.user-row {
+        align-self: flex-end;
+        flex-direction: row-reverse;
+    }
+
+    .message-avatar {
+        display: grid;
+        width: 36px;
+        height: 36px;
+        place-items: center;
+        flex: 0 0 36px;
+        color: #ffffff;
+        background: #6b7280;
+        border-radius: 50%;
+        font-size: 0.72rem;
+        font-weight: 700;
+    }
+
+    .message-avatar.user-avatar {
+        background: #111827;
+    }
+
+    .message-body {
+        min-width: 0;
+    }
+
+    .message-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.35rem;
+        color: #4b5563;
+        font-size: 0.8rem;
+    }
+
+    .message-meta.user-meta {
+        justify-content: flex-end;
+    }
+
+    .message-bubble {
+        padding: 0.85rem 1rem;
+        color: #1f2937;
+        white-space: pre-wrap;
+        background: #f3f5f7;
+        border: 1px solid #e3e8ef;
+        border-radius: 14px;
+    }
+
+    .message-bubble.user-bubble {
+        color: #ffffff;
+        background: #111827;
+        border-color: #111827;
+    }
+
+    .message-body :global(.alert) {
+        margin: 0;
+        border-radius: 14px;
+    }
+
+    .message-body :global(.alert p) {
+        margin: 0.35rem 0 0;
+    }
+
+    .message-body :global(.alert small) {
+        display: block;
+        margin-top: 0.5rem;
+        opacity: 0.8;
+    }
+
+    .composer {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    .composer-input {
+        flex: 1;
+    }
+</style>

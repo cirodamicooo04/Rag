@@ -143,3 +143,5 @@ wrapt==2.1.2
 xxhash==3.7.0
 yarl==1.23.0
 zh_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/zh_core_web_sm-3.8.0/zh_core_web_sm-3.8.0-py3-none-any.whl#sha256=7de3bd267176b9b2a8defb6997c1cd296da16c57b5e712f72ea44a51755421c8
+
+python-jose

@@ -1,4 +1,6 @@
-from sqlalchemy import Column, String, Text, Integer, Boolean, ForeignKey
+from datetime import datetime
+
+from sqlalchemy import Column, String, Text, Integer, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -39,5 +41,31 @@ class Chunk(Base):
 class Conversation(Base):
     __tablename__ = 'conversations'
     id = Column(Integer, primary_key=True, index=True)
-    question = Column(Text)
-    answer = Column(Text)
+    user_id = Column(String, nullable = False)
+    title = Column(String, nullable = False)
+    messages = relationship("ConversationMessage", back_populates="conversation", cascade="all, delete-orphan")
+
+class ConversationMessage(Base):
+    __tablename__ = 'conversation_messages'
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey('conversations.id', ondelete='CASCADE'))
+    role = Column(String, nullable=False)
+    sequence_number = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+
+    conversation = relationship("Conversation", back_populates="messages")
+
+class BlockedRequest(Base):
+    __tablename__ = "blocked_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, nullable=True)
+
+    original_query = Column(Text, nullable=False)
+    final_query = Column(Text, nullable=True)
+
+    blocked_stage = Column(String, nullable=False)
+    blocked_by = Column(String, nullable=False)
+    reason = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.now)

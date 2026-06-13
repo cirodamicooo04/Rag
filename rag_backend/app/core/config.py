@@ -9,6 +9,16 @@ UPLOAD_DIR = BASE_DIR / "docs"
 
 INITIALIZE_GUARDRAILS_DB = False
 
+#============================================================
+
+#KEYCLOAK
+KEYCLOAK_URL = "http://localhost:8089"
+KEYCLOAK_REALM = "rag-system"
+KEYCLOAK_ISSUER = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}"
+KEYCLOAK_JWKS_URL = f"{KEYCLOAK_ISSUER}/protocol/openid-connect/certs"
+
+#============================================================
+
 #URL AND MODELS
 QDRANT_URL = "http://localhost:6333"
 COLLECTION_NAME = "rag_collection"
@@ -52,7 +62,7 @@ INTENT_CLASSIFIER_CONTROL = True
 
 #DOCUMENT PIPELINE CONTROLS
 NORMALIZATION_DOCUMENT = True
-DOCUMENT_CLASSIFIER  = True
+DOCUMENT_CLASSIFIER  = False
 
 #OUTPUT PIPELINE CONTROLS
 LLM_JUDGE_CONTROL = True

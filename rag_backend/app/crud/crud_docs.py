@@ -1,4 +1,4 @@
-from app.db.models import Chunk, Conversation
+from app.db.models import Chunk, Conversation, BlockedRequest, ConversationMessage
 
 from app.db.models import Document
 
@@ -42,23 +42,12 @@ def mark_chunk_as_indexed(db, chunk):
     db.query(Chunk).filter(Chunk.chunk_id == chunk.chunk_id).update({"indexed": True, "security_status": "SAFE", "security_reason": "Passed scan or manually approved"})
     db.commit()
 
-def save_conversation(db, user_query, response):
-    new_conv = Conversation(question=user_query, answer=response)
-    db.add(new_conv)
+def create_conversation(db, user_id, title):
+    conversation = Conversation(user_id=user_id, title=title)
+    db.add(conversation)
     db.commit()
-    db.refresh(new_conv)
-    return new_conv
-
-def get_all_conversations(db):
-    return db.query(Conversation).all()
-
-def get_conversation(id, db):
-    return db.query(Conversation).filter(Conversation.id == id).first()
-
-
-def delete_conversation(id, db):
-    db.query(Conversation).filter(Conversation.id == id).delete()
-    db.commit()
+    db.refresh(conversation)
+    return conversation
 
 def delete_dataset(db):
     db.query(Document).delete()
@@ -108,6 +97,11 @@ def update_document_index_status(db, document_hash):
 
     return document
 
+def save_blocked_request(db, user_id, original_query, final_query, blocked_stage, blocked_by, reason):
+    new_blocked_request = BlockedRequest(user_id=user_id, original_query=original_query, final_query=final_query, blocked_stage=blocked_stage, blocked_by=blocked_by, reason=reason)
+    db.add(new_blocked_request)
+    db.commit()
+
 
 def get_indexed_chunks_by_doc_hash(db, doc_hash):
     return db.query(Chunk).filter(Chunk.document_hash == doc_hash).filter(Chunk.indexed == 1).all()
@@ -126,3 +120,40 @@ def get_quarantined_chunks_by_doc_hash(db, doc_hash):
 
 def get_chunk_by_id(db, chunk_id):
     return db.query(Chunk).filter(Chunk.chunk_id == chunk_id).first()
+
+
+def get_logs(db):
+    return db.query(BlockedRequest).all()
+
+def clear_logs(db):
+    db.query(BlockedRequest).delete()
+    db.commit()
+
+def delete_log(db, id):
+    db.query(BlockedRequest).filter(BlockedRequest.id == id).delete()
+    db.commit()
+
+def get_log_by_id(db, id):
+    return db.query(BlockedRequest).filter(BlockedRequest.id == id).first()
+
+def save_conversation_messages(db, id, messages):
+    for message in messages:
+        new_conv_message = ConversationMessage(conversation_id=id,role=message.role,sequence_number=message.sequence_number, content=message.content)
+        db.add(new_conv_message)
+    db.commit()
+
+
+def get_saved_conversations(db, param):
+    return db.query(Conversation).filter(Conversation.user_id == param).all()
+
+
+def get_saved_conversation_by_id(db, id):
+    return db.query(Conversation).filter(Conversation.id == id).first()
+
+
+def delete_conversation_by_id(db, id):
+    conversation = db.query(Conversation).filter(Conversation.id == id).first()
+
+    if conversation:
+        db.delete(conversation)
+        db.commit()
