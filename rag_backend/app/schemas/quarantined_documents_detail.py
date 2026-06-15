@@ -1,13 +1,15 @@
-from pydantic import BaseModel
+from app.schemas.utils import CamelModel
 
-class QuarantinedChunksDTO(BaseModel):
+
+class QuarantinedChunksDTO(CamelModel):
     chunk_id: str
     chunk_index: int
     security_status: str
     security_reason: str | None = None
-    text_preview: str
+    text: str
 
-class QuarantinedDocumentDTO(BaseModel):
+
+class QuarantinedDocumentDTO(CamelModel):
     file_hash: str
     quarantined_chunks: list[QuarantinedChunksDTO]
 

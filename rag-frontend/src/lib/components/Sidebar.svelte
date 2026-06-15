@@ -1,10 +1,19 @@
 <script>
-    import {Nav, NavbarBrand, NavItem, NavLink} from "@sveltestrap/sveltestrap";
+    import {Nav, NavItem, NavLink} from "@sveltestrap/sveltestrap";
     import { page } from "$app/state";
     import {getRoles} from "$lib/auth/keycloak.js";
 
     function active(path) {
-        return page.url.pathname === path;
+        const currentPath = page.url.pathname;
+        
+        if (path === '/app') {
+            return currentPath === '/app' || 
+                  (currentPath.startsWith('/app/') && 
+                   !currentPath.startsWith('/app/saved-conversations') && 
+                   !currentPath.startsWith('/app/admin'));
+        }
+        
+        return currentPath === path || currentPath.startsWith(`${path}/`);
     }
 
 </script>

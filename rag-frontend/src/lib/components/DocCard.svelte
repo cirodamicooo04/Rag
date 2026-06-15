@@ -1,7 +1,7 @@
 <script>
     import { Card, CardBody, CardTitle, CardSubtitle, CardText, Button, Badge, Progress } from '@sveltestrap/sveltestrap';
 
-    let { document, onDelete, onApprove, onSecurityStatus, canApprove = true } = $props();
+    let { document, onDelete, onApprove, onSecurityStatus} = $props();
 
     let statusColor = $derived(
         document.status === 'indexed' ? 'success' : 
@@ -12,6 +12,8 @@
     let progressValue = $derived(
         document.totalChunks > 0 ? Math.round((document.indexedChunks / document.totalChunks) * 100) : 0
     );
+
+    let isQuarantined = $derived(document.status === 'PARTIALLY_INDEXED' || document.status === 'REJECTED_SECURITY');
 </script>
 
 <Card class="shadow h-100" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 0.75rem; ">
@@ -51,17 +53,15 @@
             </div>
         </CardText>
 
-        <div class="d-flex justify-content-between mt-auto pt-3 border-top">
-            <Button size="sm" color="info" class="text-white fw-semibold" onclick={() => onSecurityStatus?.(document)}>
-                Detail
+        <div class="d-flex mt-auto pt-3 border-top">
+            <Button size="sm" color="primary" class="text-white fw-semibold" onclick={() => onSecurityStatus?.(document)}>
+                Security summary
             </Button>
-            
-            <div class="d-flex gap-2">
-                {#if document.status !== 'indexed'}
-                    <Button size="sm" color="success" class="fw-semibold" disabled={canApprove} onclick={() => onApprove?.(document)}>
+
+            <div class="d-flex gap-2 ms-auto">
+                    <Button size="sm" color="success" class="fw-semibold" onclick={() => onApprove?.(document)} disabled={!isQuarantined}>
                         Approve
                     </Button>
-                {/if}
                 <Button size="sm" color="danger" class="fw-semibold" onclick={() => onDelete?.(document)}>
                     Delete
                 </Button>

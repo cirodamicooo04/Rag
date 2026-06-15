@@ -199,7 +199,7 @@ async def get_document_security_summary(doc_hash: str, db: Session = Depends(get
 
     chunks = crud_docs.get_quarantined_chunks_by_doc_hash(db, doc_hash)
 
-    return QuarantinedDocumentDTO(
+    response = QuarantinedDocumentDTO(
         file_hash=doc_hash,
         quarantined_chunks=[
             QuarantinedChunksDTO(
@@ -207,11 +207,13 @@ async def get_document_security_summary(doc_hash: str, db: Session = Depends(get
                 chunk_index=chunk.chunk_index,
                 security_status=chunk.security_status,
                 security_reason=chunk.security_reason,
-                text_preview=chunk.text
+                text=chunk.text
             )
             for chunk in chunks
         ]
     )
+
+    return response.model_dump(by_alias=True)
 
 @router.post("/chunks/{chunk_id}/approve")
 async def approve_chunk(chunk_id: str, db: Session = Depends(get_db)):
@@ -230,6 +232,16 @@ async def approve_chunk(chunk_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error indexing chunk: {e}")
 
     return {"message": "Chunk approved and indexed successfully"}
+
+@router.delete("/chunks/{chunk_id}")
+async def delete_chunk(chunk_id: str, db: Session = Depends(get_db)):
+    chunk = crud_docs.get_chunk_by_id(db, chunk_id)
+    if not chunk:
+        raise HTTPException(status_code=404, detail=f"Chunk with id: {chunk_id} not found")
+
+    crud_docs.delete_chunk(db, chunk_id)
+    crud_docs.update_document_index_status(db, chunk.document_hash)
+    return {"message": "Chunk deleted successfully"}
 
 @router.post("/docs/{doc_hash}/approve")
 async def approve_document(doc_hash: str, db: Session = Depends(get_db)):
@@ -291,6 +303,8 @@ def delete_document(doc_hash: str,db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting document: {e}")
 
+
+#LOGS
 
 @router.get("/logs")
 async def get_logs(db: Session = Depends(get_db)):

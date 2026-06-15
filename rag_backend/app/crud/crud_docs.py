@@ -68,10 +68,9 @@ def update_document_index_status(db, document_hash):
         return None
 
     if not chunks:
-        document.status = "CHUNKED"
+        db.query(Document).filter(Document.file_hash == document_hash).delete()
         db.commit()
-        db.refresh(document)
-        return document
+        return None
 
     indexed_count = sum(1 for c in chunks if c.indexed)
     quarantined_count = sum(1 for c in chunks if c.security_status == "QUARANTINED")
@@ -156,4 +155,11 @@ def delete_conversation_by_id(db, id):
 
     if conversation:
         db.delete(conversation)
+        db.commit()
+
+
+def delete_chunk(db, chunk_id):
+    chunk = db.query(Chunk).filter(Chunk.chunk_id == chunk_id).first()
+    if chunk:
+        db.delete(chunk)
         db.commit()
