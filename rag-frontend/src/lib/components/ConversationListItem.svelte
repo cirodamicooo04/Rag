@@ -6,9 +6,8 @@
     let title = $derived(conversation?.title ?? "Untitled conversation");
     let preview = $derived(getLastMessagePreview(conversation));
 
-    //TODO: Aggiustare prendendo l'ultimo messaggio dell'utente
     function getLastMessagePreview(conversation) {
-        const messages = conversation?.messages ?? conversation?.conversation_messages ?? [];
+        const messages = conversation?.messages ?? [];
 
         if (!Array.isArray(messages) || messages.length === 0) {
             return "Nessun messaggio disponibile";

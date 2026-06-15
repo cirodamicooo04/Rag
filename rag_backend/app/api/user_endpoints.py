@@ -101,3 +101,27 @@ def delete_conversation(id: int, user: dict = Depends(require_role("USER")), db:
     crud_docs.delete_conversation_by_id(db, id)
 
     return {"message": "Conversation deleted successfully"}
+
+
+@user_router.get("/conversations/{id}")
+def get_conversation(id: int, user: dict = Depends(require_role("USER")), db: Session = Depends(get_db)):
+    conversation = crud_docs.get_saved_conversation_by_id(db, id)
+
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if conversation.user_id != user.get("sub"):
+        raise HTTPException(status_code=403, detail="You do not have permission to view this conversation")
+
+    return ConversationResponse(
+        id=conversation.id,
+        user_id=conversation.user_id,
+        title=conversation.title,
+        messages=[
+            ConversationMessageResponse(
+                id=message.id,
+                role=message.role,
+                sequence_number=message.sequence_number,
+                content=message.content
+            ) for message in conversation.messages
+        ]
+    )

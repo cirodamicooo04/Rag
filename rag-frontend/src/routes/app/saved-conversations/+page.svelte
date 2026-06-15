@@ -75,7 +75,7 @@
                         {conversation}
                         disabled={loading}
                         onDelete={() => deleteConv(conversation.id)}
-                        onOpen={() => goto(`/app/saved-conversations/${conversation.id}`)}
+                        onOpen={() => goto(`/app/${conversation.id}`)}
                     />
                 {/each}
             </ListGroup>

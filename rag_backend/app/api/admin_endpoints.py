@@ -85,9 +85,9 @@ async def make_chunks(db: Session = Depends(get_db)):
             chunks = chunker.semantic_chunk(clean_document_text)
 
             for i, text_content in enumerate(chunks):
-                chunk_id = deterministic_chunk_id(doc.file_hash,0,i)
+                chunk_id = deterministic_chunk_id(doc.file_hash, 0, i)
 
-                crud_docs.create_chunk(db,chunk_id=chunk_id, doc_hash=doc.file_hash, text=text_content, index=i, title=document_metadata.get("title"), scope=document_metadata.get("scope"), category=document_metadata.get("category"), source_url=document_metadata.get("source_url"), scraping_date=document_metadata.get("scraping_date"))
+                crud_docs.create_chunk(db, chunk_id=chunk_id, doc_hash=doc.file_hash, text=text_content, index=i, title=document_metadata.get("title"), scope=document_metadata.get("scope"), category=document_metadata.get("category"), source_url=document_metadata.get("source_url"), scraping_date=document_metadata.get("scraping_date"))
 
 
             crud_docs.update_document_status(db, doc.file_hash, new_status="CHUNKED")
@@ -179,14 +179,14 @@ async def get_document_status(db: Session = Depends(get_db)):
         quarantined_chunks = sum(1 for chunk in doc.chunks if chunk.security_status == "QUARANTINED")
 
         result.append(
-            DocumentDTO(file_hash=doc.file_hash,
-                        file_name=doc.file_name,
+            DocumentDTO(fileHash=doc.file_hash,
+                        fileName=doc.file_name,
                         file_type=doc.file_type,
                         status=doc.status,
-                        total_chunks=total_chunks,
-                        indexed_chunks=indexed_chunks,
-                        quarantined_chunks=quarantined_chunks
-            )
+                        totalChunks=total_chunks,
+                        indexedChunks=indexed_chunks,
+                        quarantinedChunks=quarantined_chunks
+                        )
         )
 
     return result
@@ -275,7 +275,7 @@ def reset_dataset(db: Session = Depends(get_db)):
     indexer.clean_index()
     return {"message": "Dataset reset successfully"}
 
-@router.delete("/documents/{doc_hash}")
+@router.delete("/docs/{doc_hash}")
 def delete_document(doc_hash: str,db: Session = Depends(get_db)):
     document = crud_docs.get_document_by_hash(db, doc_hash)
     if not document:

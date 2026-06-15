@@ -1,7 +1,8 @@
 <script>
     import {Alert, Badge, Button, Input, Modal, ModalBody, ModalFooter, ModalHeader} from "@sveltestrap/sveltestrap"
     import {ask} from "$lib/api/ask.js"
-    import {save_conversation} from "$lib/api/conversation.js"
+    import {getConversation, save_conversation} from "$lib/api/conversation.js"
+    import {page} from "$app/state"
 
     let query = $state("")
     let messages = $state([])
@@ -18,6 +19,24 @@
     let saving_conversations_loading = $state(false)
     let saving_conversations_error = $state(null)
     let saving_conversations_success = $state(null)
+
+    let loading_conversation = $state(false)
+    let loading_conversation_error = $state(null)
+
+    $effect(() => {
+        // Leggiamo l'id dallo store di SvelteKit
+        const id = page.params.id;
+
+        if (id) {
+            // Se l'ID esiste nell'URL, svuota la chat attuale e carica quella dal BE
+            loadConversation(id);
+        } else {
+            // Se siamo su /app (senza ID), resetta lo stato per una nuova chat
+            messages = [];
+            sequence_number = 0;
+            conversation_title = "";
+        }
+    });
 
     async function sendQuery() {
         if (query.trim() === "") return
@@ -77,6 +96,24 @@
         }
 
     }
+
+    async function loadConversation(id){
+        loading_conversation = true
+        loading_conversation_error = null
+
+        try {
+            const conversation = await getConversation(id)
+            messages = conversation.messages
+            messages.sort((a, b) => a.sequence_number < b.sequence_number)
+
+            sequence_number = messages.length > 0 ? Math.max(...messages.map(m => m.sequence_number)) : 0
+        } catch (e){
+            loading_conversation_error = e.message
+            console.error(e)
+        } finally {
+            loading_conversation = false
+        }
+    }
 </script>
 
 <Modal isOpen={modalOpen} {toggle}>
@@ -106,9 +143,9 @@
             </div>
 
             <Button
-                color="primary"
-                disabled={messages.length === 0 || saving_conversations_loading || loading}
-                onclick={toggle}
+                    color="primary"
+                    disabled={messages.length === 0 || saving_conversations_loading || loading}
+                    onclick={toggle}
             >
                 {saving_conversations_loading ? "Saving..." : "Save conversation"}
             </Button>
@@ -164,18 +201,18 @@
     </div>
 
     <form
-        class="composer"
-        onsubmit={(event) => {
+            class="composer"
+            onsubmit={(event) => {
             event.preventDefault()
             sendQuery()
         }}
     >
         <div class="composer-input">
             <Input
-                bind:value={query}
-                disabled={loading}
-                placeholder="Scrivi una domanda sui documenti..."
-                type="text"
+                    bind:value={query}
+                    disabled={loading}
+                    placeholder="Scrivi una domanda sui documenti..."
+                    type="text"
             />
         </div>
 

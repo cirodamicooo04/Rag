@@ -2,13 +2,13 @@ from pydantic import BaseModel
 
 
 class DocumentDTO(BaseModel):
-    file_hash: str
-    file_name:str
+    fileHash: str
+    fileName:str
     file_type:str
     status:str
-    total_chunks: int
-    indexed_chunks: int
-    quarantined_chunks: int
+    totalChunks: int
+    indexedChunks: int
+    quarantinedChunks: int
 
     class Config:
         from_attributes = True

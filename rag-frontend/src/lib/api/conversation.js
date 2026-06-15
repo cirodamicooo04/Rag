@@ -18,6 +18,12 @@ export function getSavedConversations(){
     })
 }
 
+export function getConversation(conversation_id){
+    return apiFetch(`/conversations/${conversation_id}`, {
+        auth: "required"
+    })
+}
+
 export function deleteConversation(conversation_id){
     return apiFetch(`/conversations/${conversation_id}`, {
         auth: "required",
