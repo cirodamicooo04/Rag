@@ -1,15 +1,14 @@
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, File, UploadFile, Depends, HTTPException
+from fastapi import APIRouter, File, UploadFile, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from sympy import true
 
 from app.core.config import UPLOAD_DIR, NORMALIZATION_DOCUMENT, DOCUMENT_CLASSIFIER
 from app.core.utils import sha256_file, deterministic_chunk_id
 from app.crud import crud_docs
 from app.db.database import get_db
-from app.schemas.document import DocumentDTO
+from app.schemas.document import DocumentDTO, to_document_dto
 from app.schemas.logs import LogResponse
 from app.schemas.quarantined_documents_detail import QuarantinedDocumentDTO, QuarantinedChunksDTO
 from app.security.auth_guard import require_role, get_current_user
@@ -17,8 +16,54 @@ from app.services import ingester, chunker, indexer, query
 from app.services.document_parser import remove_document_header, parse_document_metadata
 from app.guardrails.document.layers.normalizer import normalize_document_text
 from app.guardrails.document.layers.document_classifier import DocumentCategory, classify_document
+from app.task.background_tasks import process_document_pipeline
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role("ADMIN"))])
+
+@router.post("/upload-and-process")
+async def upload_and_process_document(background_tasks: BackgroundTasks ,file: UploadFile = File(...), db: Session = Depends(get_db)):
+    import hashlib
+    import uuid
+
+    # 1. Salvo il file in uno store temporaneo usando un UUID per evitare QUALSIASI collisione di nomi
+    extension = Path(file.filename).suffix.lower()
+    temp_uuid_path = UPLOAD_DIR / f"temp_{uuid.uuid4()}{extension}"
+    
+    sha256_hash = hashlib.sha256()
+    try:
+        with temp_uuid_path.open("wb") as buffer:
+            while chunk := file.file.read(8192): # Leggiamo a blocchi
+                sha256_hash.update(chunk)
+                buffer.write(chunk)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error while saving file: {e}")
+
+    file_hash = sha256_hash.hexdigest()
+
+    # 2. Controllo il database
+    existing = crud_docs.get_document_by_hash(db, file_hash)
+    if existing:
+        if existing.status == "ERROR":
+            # Se era in errore, pulisco il DB e gli permetto di ricaricarlo
+            crud_docs.delete_document(db, file_hash)
+        else:
+            # Se esisteva già ed era andato bene, cancello il file fisico appena creato e lancio 409
+            temp_uuid_path.unlink(missing_ok=True)
+            raise HTTPException(status_code=409, detail="Document already exists")
+
+    # 3. Rinomino il file usando l'hash come nome finale. 
+    # Questo assicura univocità al 100% all'interno di UPLOAD_DIR
+    final_path = UPLOAD_DIR / f"{file_hash}{extension}"
+    # Sovrascrive automaticamente se esiste già un vecchio rimasuglio
+    temp_uuid_path.rename(final_path)
+
+    # 4. Creo il documento in PROCESSING e lancio la task
+    new_document = crud_docs.create_document_for_processing(db, file_hash, file.filename, str(final_path), extension)
+
+    background_tasks.add_task(process_document_pipeline, file_hash, str(final_path))
+
+    dto = to_document_dto(new_document).model_dump(by_alias=True)
+    return dto
 
 
 @router.post("/upload")
@@ -45,8 +90,7 @@ async def upload_document(file: UploadFile = File(...) ,db: Session = Depends(ge
     extension = Path(temp_path).suffix.lower()
     new_document = crud_docs.create_document(db, file_hash, file.filename, str(temp_path), extension)
 
-    return {"message": "Document uploaded successfully", "filename": new_document.file_name, "hash": new_document.file_hash}
-
+    return {"message": f"Document with hash {file_hash} uploaded successfully"}
 
 
 
@@ -181,14 +225,14 @@ async def get_document_status(db: Session = Depends(get_db)):
         quarantined_chunks = sum(1 for chunk in doc.chunks if chunk.security_status == "QUARANTINED")
 
         result.append(
-            DocumentDTO(fileHash=doc.file_hash,
-                        fileName=doc.file_name,
+            DocumentDTO(file_hash=doc.file_hash,
+                        file_name=doc.file_name,
                         file_type=doc.file_type,
                         status=doc.status,
-                        totalChunks=total_chunks,
-                        indexedChunks=indexed_chunks,
-                        quarantinedChunks=quarantined_chunks
-                        )
+                        total_chunks=total_chunks,
+                        indexed_chunks=indexed_chunks,
+                        quarantined_chunks=quarantined_chunks
+                        ).model_dump(by_alias=True)
         )
 
     return result

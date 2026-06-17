@@ -46,3 +46,11 @@ export function deleteChunk(chunk_id){
         method: "DELETE"
     })
 }
+
+export function uploadDocument(file){
+    return apiFetch("/admin/upload-and-process", {
+        auth: "required",
+        method: "POST",
+        body: file
+    })
+}

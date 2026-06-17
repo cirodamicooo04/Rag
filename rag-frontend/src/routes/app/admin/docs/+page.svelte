@@ -1,12 +1,25 @@
 <script>
     import { onMount } from "svelte";
-    import { getDocuments, deleteDocument, approveDocument } from "$lib/api/document.js";
+    import { getDocuments, deleteDocument, approveDocument, uploadDocument } from "$lib/api/document.js";
     import DocCard from "$lib/components/DocCard.svelte";
     import { goto } from "$app/navigation";
-    import { Button} from "@sveltestrap/sveltestrap";
+    import {
+        Alert, Badge,
+        Button,
+        Input,
+        Modal,
+        ModalBody,
+        ModalFooter,
+        ModalHeader,
+        TabContent, TabPane
+    } from "@sveltestrap/sveltestrap";
     import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 
     let docs = $state([]);
+
+    let readyDocs = $state([])
+    let processingDocs = $state([])
+    let quarantineDocs = $state([])
     
     // Modal state
     let isConfirmModalOpen = $state(false);
@@ -33,6 +46,39 @@
     let approvingLoading = $state(false);
     let approvingError = $state(null);
 
+    let isModalOpen = $state(false);
+    let selectedFile = $state(null);
+    let uploadStatus = $state({loading: false, error: null, success: false});
+
+
+    function toggle(){
+        if (isModalOpen){
+            selectedFile = null;
+            uploadStatus = {error: null, success: false};
+        }
+        isModalOpen = !isModalOpen;
+    }
+
+    async function handleUpload() {
+        uploadStatus.loading = true;
+        uploadStatus.error = null;
+        uploadStatus.success = null;
+
+        try {
+            let formData = new FormData();
+            formData.append("file", selectedFile[0]);
+            const response = await uploadDocument(formData);
+            processingDocs.push(response);
+
+            uploadStatus.success = true;
+        } catch (e) {
+            uploadStatus.error = e.message;
+            console.error(e);
+        } finally {
+            uploadStatus.loading = false;
+        }
+    }
+
     onMount(async() => {
         await loadDocs();
     });
@@ -42,7 +88,24 @@
         loadingDocsError = null;
 
         try {
-            docs = await getDocuments();
+            const response = await getDocuments();
+            
+            readyDocs = [];
+            processingDocs = [];
+            quarantineDocs = [];
+            
+            response.forEach(doc => {
+                if (doc.status === "INDEXED"){
+                    readyDocs.push(doc)
+                } else if (doc.status === "REJECTED_SECURITY" || doc.status === "PARTIALLY_INDEXED"){
+                    quarantineDocs.push(doc)
+                } else {
+                    processingDocs.push(doc)
+                }
+            });
+            
+            docs = response;
+
         } catch(e) {
             loadingDocsError = e.message;
             console.error(e);
@@ -69,6 +132,9 @@
         try {
             await deleteDocument(id);
             docs = docs.filter(doc => doc.fileHash !== id);
+            readyDocs = readyDocs.filter(doc => doc.fileHash !== id);
+            processingDocs = processingDocs.filter(doc => doc.fileHash !== id);
+            quarantineDocs = quarantineDocs.filter(doc => doc.fileHash !== id);
         } catch (e) {
             deletingError = e.message;
             console.error(e);
@@ -120,7 +186,10 @@
 
         try {
             await deleteDataset()
-            docs = []
+            docs = [];
+            readyDocs = [];
+            processingDocs = [];
+            quarantineDocs = [];
 
         } catch (e) {
             deletingDatasetError = e.message;
@@ -129,7 +198,44 @@
             deletingDatasetLoading = false;
         }
     }
+
 </script>
+
+<!--- UPLOADING FILE MODAL -->
+<Modal isOpen={isModalOpen} toggle={toggle} title="Upload new file" centered={true}>
+    <ModalHeader>
+        <h5><strong>Upload new file</strong></h5>
+    </ModalHeader>
+    <ModalBody>
+        {#if uploadStatus.error}
+            <Alert color="danger">Error while uploading file</Alert>
+        {/if}
+        {#if uploadStatus.success}
+            <Alert color="success">File uploaded with success</Alert>
+        {/if}
+
+        <Input type="file" bind:files={selectedFile} accept=".txt" disabled={uploadStatus.loading || uploadStatus.success}/>
+
+        {#if selectedFile}
+            <div class="pt-3">
+                <strong class="text-success">File ready to upload</strong>
+            </div>
+
+        {/if}
+    </ModalBody>
+
+    <ModalFooter>
+        <Button color="primary" disabled={uploadStatus.loading || !selectedFile || uploadStatus.success} onclick={handleUpload}>
+            Upload
+        </Button>
+
+        <Button color="secondary" onclick={toggle} disabled={uploadStatus.loading}>
+            Cancel
+        </Button>
+    </ModalFooter>
+
+</Modal>
+
 
 <div class="documents-container">
     <header class="page-header d-flex align-items-center justify-content-between">
@@ -138,38 +244,104 @@
             <Button color="danger" onclick={promptDeleteDataset} disabled={deletingDatasetLoading || docs.length === 0}>
                 Delete dataset
             </Button>
-            <Button color="primary" class="fw-semibold shadow-sm" disabled={loadingDocs || loadingDocsError} onclick={() => {/* TODO: Logica modale */}}>
+            <Button color="primary" class="fw-semibold shadow-sm" disabled={loadingDocs || loadingDocsError} onclick={toggle}>
                 +
             </Button>
         </div>
     </header>
-    
-    <div class="scrollable-content">
-        {#if loadingDocs}
-            <div class="loading-state">
-                <p>Loading documents...</p>
-            </div>
-        {:else if loadingDocsError}
-            <div class="error-state">
-                <p>Failed to load documents. Please try again</p>
-            </div>
-        {:else if docs.length === 0}
-            <div class="empty-state">
-                <p>No documents found.</p>
-            </div>
-        {:else}
-            <div class="documents-grid">
-                {#each docs as doc}
-                    <DocCard document={doc}
-                             onApprove={() => {promptApprove(doc.fileHash)}}
-                             onDelete={() => {promptDelete(doc.fileHash)}}
-                             onSecurityStatus={() => goto(`/app/admin/docs/security-summary/${doc.fileHash}`)}
-                    />
-                {/each}
-            </div>
-        {/if}
-    </div>
+
+    {#if loadingDocs}
+        <div class="loading-state">
+            <p>Loading documents...</p>
+        </div>
+    {:else if loadingDocsError}
+        <div class="error-state">
+            <p>Failed to load documents. Please try again</p>
+        </div>
+    {:else}
+        <TabContent>
+            <!-- READY TAB -->
+            <TabPane tabId="ready" active>
+                <span slot="tab" class="fw-bold">Ready</span>
+                <div class="scrollable-content mt-3">
+                    {#if readyDocs.length === 0}
+                        <div class="empty-state">
+                            <p>No ready documents found.</p>
+                        </div>
+                    {:else}
+                        <div class="documents-grid">
+                            {#each readyDocs as doc (doc.fileHash)}
+                                <DocCard document={doc}
+                                         onApprove={() => {promptApprove(doc.fileHash)}}
+                                         onDelete={() => {promptDelete(doc.fileHash)}}
+                                         onSecurityStatus={() => goto(`/app/admin/docs/security-summary/${doc.fileHash}`)}
+                                />
+                            {/each}
+                        </div>
+                    {/if}
+                </div>
+            </TabPane>
+
+            <!-- PROCESSING TAB -->
+            <TabPane tabId="processing">
+                <span slot="tab" class="fw-bold text-primary">
+                    Processing 
+                    {#if processingDocs.length > 0}
+                        <Badge color="primary" class="ms-1">{processingDocs.length}</Badge>
+                    {/if}
+                </span>
+                <div class="scrollable-content mt-3">
+                    {#if processingDocs.length === 0}
+                        <div class="empty-state">
+                            <p>No documents in processing.</p>
+                        </div>
+                    {:else}
+                        <div class="documents-grid">
+                            {#each processingDocs as doc (doc.fileHash)}
+                                <!-- Passiamo isProcessing al componente (se lo supporta) -->
+                                <DocCard document={doc}
+                                         isProcessing={true}
+                                         onApprove={() => {promptApprove(doc.fileHash)}}
+                                         onDelete={() => {promptDelete(doc.fileHash)}}
+                                         onSecurityStatus={() => goto(`/app/admin/docs/security-summary/${doc.fileHash}`)}
+                                />
+                            {/each}
+                        </div>
+                    {/if}
+                </div>
+            </TabPane>
+
+            <!-- QUARANTINE TAB -->
+            <TabPane tabId="quarantine">
+                <span slot="tab" class="fw-bold text-danger">
+                    Quarantine 
+                    {#if quarantineDocs.length > 0}
+                        <Badge color="danger" class="ms-1">{quarantineDocs.length}</Badge>
+                    {/if}
+                </span>
+                <div class="scrollable-content mt-3">
+                    {#if quarantineDocs.length === 0}
+                        <div class="empty-state">
+                            <p>No quarantined documents.</p>
+                        </div>
+                    {:else}
+                        <div class="documents-grid">
+                            {#each quarantineDocs as doc (doc.fileHash)}
+                                <DocCard document={doc}
+                                         onApprove={() => {promptApprove(doc.fileHash)}}
+                                         onDelete={() => {promptDelete(doc.fileHash)}}
+                                         onSecurityStatus={() => goto(`/app/admin/docs/security-summary/${doc.fileHash}`)}
+                                />
+                            {/each}
+                        </div>
+                    {/if}
+                </div>
+            </TabPane>
+
+        </TabContent>
+    {/if}
 </div>
+
 
 <ConfirmModal 
     bind:isOpen={isConfirmModalOpen}
@@ -199,6 +371,21 @@
         color: #111827;
         font-size: 1.65rem;
         font-weight: 750;
+    }
+
+    /* Propaghiamo l'altezza flex ai componenti interni di Sveltestrap */
+    :global(.tab-content) {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+    }
+
+    :global(.tab-pane.active) {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
     }
 
     .scrollable-content {

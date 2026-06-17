@@ -1,14 +1,19 @@
-from pydantic import BaseModel
+from pydantic import ConfigDict
+
+from app.db.models import Document
+from app.schemas.utils import CamelModel
 
 
-class DocumentDTO(BaseModel):
-    fileHash: str
-    fileName:str
+class DocumentDTO(CamelModel):
+    file_hash: str
+    file_name:str
     file_type:str
     status:str
-    totalChunks: int
-    indexedChunks: int
-    quarantinedChunks: int
+    total_chunks: int = 0
+    indexed_chunks: int = 0
+    quarantined_chunks: int = 0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True, )
+
+def to_document_dto(doc: Document):
+    return DocumentDTO.model_validate(doc)

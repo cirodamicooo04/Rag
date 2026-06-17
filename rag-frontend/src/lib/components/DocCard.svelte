@@ -28,7 +28,7 @@
         </div>
 
         <CardSubtitle class="mb-3 text-muted" style="font-size: 0.8em;">
-            <span class="text-uppercase fw-bold">{document.file_type || 'Unknown'}</span> 
+            <span class="text-uppercase fw-bold">{document.fileType || 'Unknown'}</span>
             {#if document.fileHash}
                 • <span title={document.fileHash} class="text-secondary" style="font-family: monospace;">{document.fileHash.substring(0, 10)}...</span>
             {/if}
@@ -41,27 +41,33 @@
             </div>
             <Progress value={progressValue} color="success" style="height: 6px;" class="mb-2" />
 
-            <div class="mt-3 p-2 rounded" style="background-color: #fef2f2; border: 1px solid #fecaca;">
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="text-danger fw-semibold" style="font-size: 0.85em;">
-                        ⚠ Quarantined chunks
-                    </span>
-                    <Badge color={document.quarantinedChunks > 0 ? 'danger' : 'secondary'} pill>
-                        {document.quarantinedChunks}
-                    </Badge>
+            {#if isQuarantined}
+                <div class="mt-3 p-2 rounded" style="background-color: #fef2f2; border: 1px solid #fecaca;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-danger fw-semibold" style="font-size: 0.85em;">
+                            ⚠ Quarantined chunks
+                        </span>
+                        <Badge color={document.quarantinedChunks > 0 ? 'danger' : 'secondary'} pill>
+                            {document.quarantinedChunks}
+                        </Badge>
+                    </div>
                 </div>
-            </div>
+            {/if}
         </CardText>
 
         <div class="d-flex mt-auto pt-3 border-top">
-            <Button size="sm" color="primary" class="text-white fw-semibold" onclick={() => onSecurityStatus?.(document)}>
-                Security summary
-            </Button>
+            {#if isQuarantined}
+                <Button size="sm" color="primary" class="text-white fw-semibold" onclick={() => onSecurityStatus?.(document)}>
+                    Security summary
+                </Button>
+            {/if}
 
             <div class="d-flex gap-2 ms-auto">
+                {#if isQuarantined}
                     <Button size="sm" color="success" class="fw-semibold" onclick={() => onApprove?.(document)} disabled={!isQuarantined}>
                         Approve
                     </Button>
+                {/if}
                 <Button size="sm" color="danger" class="fw-semibold" onclick={() => onDelete?.(document)}>
                     Delete
                 </Button>

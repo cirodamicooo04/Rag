@@ -23,6 +23,14 @@ def create_document(db, file_hash, file_name, file_path, file_type):
     db.refresh(document)
     return document
 
+def create_document_for_processing(db, file_hash, file_name, file_path, file_type):
+    document = Document(file_hash=file_hash, file_name=file_name, file_path=file_path, file_type=file_type, status="PROCESSING")
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+
+    return document
+
 
 def create_chunk(db, chunk_id, doc_hash, text, index, title, scope, category, source_url, scraping_date):
     chunk = Chunk(chunk_id=chunk_id,document_hash=doc_hash,text=text,chunk_index=index, title=title, scope=scope, category=category, source_url=source_url, scraping_date=scraping_date)
