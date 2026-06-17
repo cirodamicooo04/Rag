@@ -3,12 +3,14 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, UploadFile, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sympy import true
 
 from app.core.config import UPLOAD_DIR, NORMALIZATION_DOCUMENT, DOCUMENT_CLASSIFIER
 from app.core.utils import sha256_file, deterministic_chunk_id
 from app.crud import crud_docs
 from app.db.database import get_db
 from app.schemas.document import DocumentDTO
+from app.schemas.logs import LogResponse
 from app.schemas.quarantined_documents_detail import QuarantinedDocumentDTO, QuarantinedChunksDTO
 from app.security.auth_guard import require_role, get_current_user
 from app.services import ingester, chunker, indexer, query
@@ -309,7 +311,21 @@ def delete_document(doc_hash: str,db: Session = Depends(get_db)):
 @router.get("/logs")
 async def get_logs(db: Session = Depends(get_db)):
     logs = crud_docs.get_logs(db)
-    return logs
+
+    response = [
+        LogResponse(
+            id=log.id,
+            user_id=log.user_id,
+            original_query=log.original_query,
+            final_query=log.final_query,
+            blocked_stage=log.blocked_stage,
+            blocked_by=log.blocked_by,
+            reason=log.reason,
+            created_at=log.created_at.isoformat()
+        ).model_dump(by_alias=True) for log in logs
+    ]
+
+    return response
 
 @router.get("/logs/{id}")
 async def get_log(id: int, db: Session = Depends(get_db)):
@@ -328,5 +344,5 @@ async def delete_log(id: int, db: Session = Depends(get_db)):
     log = crud_docs.get_log_by_id(db, id)
     if not log:
         raise HTTPException(status_code=404, detail=f"Log with id: {id} not found")
-    crud_docs.delete_log(id, db)
+    crud_docs.delete_log(db, id)
     return {"message": "Log deleted successfully"}

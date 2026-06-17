@@ -138,7 +138,7 @@
             <Button color="danger" onclick={promptDeleteDataset} disabled={deletingDatasetLoading || docs.length === 0}>
                 Delete dataset
             </Button>
-            <Button color="primary" class="fw-semibold shadow-sm" onclick={() => {/* TODO: Logica modale */}}>
+            <Button color="primary" class="fw-semibold shadow-sm" disabled={loadingDocs || loadingDocsError} onclick={() => {/* TODO: Logica modale */}}>
                 +
             </Button>
         </div>

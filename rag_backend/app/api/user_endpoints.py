@@ -12,8 +12,6 @@ from app.services.query import get_answer
 
 user_router = APIRouter( tags=["user"])
 
-last_conversation = {}
-
 @user_router.post("/ask")
 async def ask_query(request: AskRequest, db: Session = Depends(get_db), user: dict | None = Depends(get_optional_current_user)):
     question = request.question
@@ -23,9 +21,6 @@ async def ask_query(request: AskRequest, db: Session = Depends(get_db), user: di
 
     try:
         answer = get_answer(user_query=question, user=user , db=db)
-
-        global last_conversation
-        last_conversation = {"question": question, "answer": answer}
 
         return {"answer": answer}
     except Exception as e:
