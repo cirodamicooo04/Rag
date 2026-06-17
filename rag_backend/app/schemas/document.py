@@ -13,7 +13,7 @@ class DocumentDTO(CamelModel):
     indexed_chunks: int = 0
     quarantined_chunks: int = 0
 
-    model_config = ConfigDict(from_attributes=True, )
+    model_config = ConfigDict(from_attributes=True)
 
 def to_document_dto(doc: Document):
     return DocumentDTO.model_validate(doc)

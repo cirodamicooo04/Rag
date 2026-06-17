@@ -6,6 +6,20 @@ export function getDocuments(){
     })
 }
 
+export function getProcessingDocumentsStatus(hashes){
+    const queryParams = new URLSearchParams();
+
+    queryParams.append("status", "PROCESSING");
+    if (hashes.length > 0){
+        hashes.forEach(hash => queryParams.append("hashes", hash));
+    }
+    const stringQueryParams = queryParams.toString();
+
+    return apiFetch("/admin/docs?" + stringQueryParams, {
+        auth: "required"
+    })
+}
+
 export function deleteDocument(document_id){
     return apiFetch(`/admin/docs/${document_id}`, {
         auth: "required",

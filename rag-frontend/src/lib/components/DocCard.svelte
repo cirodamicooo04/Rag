@@ -4,9 +4,9 @@
     let { document, onDelete, onApprove, onSecurityStatus} = $props();
 
     let statusColor = $derived(
-        document.status === 'indexed' ? 'success' : 
-        document.status === 'quarantined' ? 'danger' : 
-        document.status === 'processing' ? 'warning' : 'secondary'
+        document.status === 'INDEXED' ? 'success' :
+        document.status === ('REJECTED_SECURITY' || 'PARTIALLY_INDEXED') ? 'danger' :
+        document.status === 'PROCESSING' ? 'warning' : 'secondary'
     );
 
     let progressValue = $derived(
@@ -14,6 +14,7 @@
     );
 
     let isQuarantined = $derived(document.status === 'PARTIALLY_INDEXED' || document.status === 'REJECTED_SECURITY');
+    let isProcessing = $derived(document.status === 'PROCESSING');
 </script>
 
 <Card class="shadow h-100" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 0.75rem; ">
@@ -35,11 +36,19 @@
         </CardSubtitle>
 
         <CardText class="flex-grow-1">
-            <div class="small mb-1 d-flex justify-content-between" style="font-size: 0.85em;">
-                <span class="text-muted fw-semibold">Indexed ({document.indexedChunks}/{document.totalChunks})</span>
-                <span class="fw-bold">{progressValue}%</span>
-            </div>
-            <Progress value={progressValue} color="success" style="height: 6px;" class="mb-2" />
+            {#if !isProcessing}
+                <div class="small mb-1 d-flex justify-content-between" style="font-size: 0.85em;">
+                    <span class="text-muted fw-semibold">Indexed ({document.indexedChunks}/{document.totalChunks})</span>
+                    <span class="fw-bold">{progressValue}%</span>
+                </div>
+                <Progress value={progressValue} color="success" style="height: 6px;" class="mb-2" />
+            {:else}
+                <div class="small mb-1" style="font-size: 0.85em;">
+                    <span class="text-warning fw-semibold">Processing...</span>
+                </div>
+                <Progress value={100} animated striped color="warning" style="height: 6px;" class="mb-2"/>
+            {/if}
+
 
             {#if isQuarantined}
                 <div class="mt-3 p-2 rounded" style="background-color: #fef2f2; border: 1px solid #fecaca;">
@@ -68,7 +77,7 @@
                         Approve
                     </Button>
                 {/if}
-                <Button size="sm" color="danger" class="fw-semibold" onclick={() => onDelete?.(document)}>
+                <Button size="sm" color="danger" class="fw-semibold" onclick={() => onDelete?.(document)} disabled={isProcessing}>
                     Delete
                 </Button>
             </div>

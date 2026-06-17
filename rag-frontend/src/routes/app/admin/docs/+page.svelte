@@ -1,26 +1,18 @@
 <script>
     import { onMount } from "svelte";
-    import { getDocuments, deleteDocument, approveDocument, uploadDocument } from "$lib/api/document.js";
+    import {getDocuments, deleteDocument, approveDocument, uploadDocument, getProcessingDocumentsStatus} from "$lib/api/document.js";
     import DocCard from "$lib/components/DocCard.svelte";
     import { goto } from "$app/navigation";
-    import {
-        Alert, Badge,
-        Button,
-        Input,
-        Modal,
-        ModalBody,
-        ModalFooter,
-        ModalHeader,
-        TabContent, TabPane
-    } from "@sveltestrap/sveltestrap";
+    import {Alert, Badge, Button, Input, Modal, ModalBody, ModalFooter, ModalHeader, TabContent, TabPane, Toast, ToastBody, ToastHeader} from "@sveltestrap/sveltestrap";
     import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+    import {fade} from "svelte/transition";
 
     let docs = $state([]);
 
     let readyDocs = $state([])
     let processingDocs = $state([])
     let quarantineDocs = $state([])
-    
+
     // Modal state
     let isConfirmModalOpen = $state(false);
     let confirmModalConfig = $state({
@@ -49,6 +41,60 @@
     let isModalOpen = $state(false);
     let selectedFile = $state(null);
     let uploadStatus = $state({loading: false, error: null, success: false});
+
+    //TOAST
+    let toasts = $state([]);
+
+    $effect(() => {
+        if (processingDocs.length === 0){
+            return;
+        }
+
+        const interval = setInterval(async () => {
+            try {
+                const docs = await getProcessingDocumentsStatus(processingDocs.map(doc => doc.fileHash));
+
+                docs.forEach(doc => {
+                    if (doc.status !== "PROCESSING"){
+                        processingDocs = processingDocs.filter(d => d.fileHash !== doc.fileHash);
+                        if (doc.status === "INDEXED"){
+                            readyDocs.push(doc)
+                            showToast(doc, true);
+                        } else {
+                            quarantineDocs.push(doc)
+                            showToast(doc, false);
+                        }
+                    }
+                })
+            } catch (e) {
+                console.error("Error while polling for processing docs", e)
+            }
+        }, 2500)
+
+        return () => clearInterval(interval);
+    })
+
+    function showToast(doc, success = true){
+        //id casuale univoco
+        const id = Date.now() + Math.random();
+        const newToast = {
+            id,
+            title: success ? "Document processed" : "Security warning",
+            message: success ? `Document ${doc.fileName} processed successfully` : `Document ${doc.fileName} has been processed with security warnings.`,
+            color: success ? "success" : "danger",
+            isOpen: true
+        };
+        
+        toasts.push(newToast);
+
+        setTimeout(() => {
+            removeToast(id);
+        }, 3500)
+    }
+
+    function removeToast(id) {
+        toasts = toasts.filter(t => t.id !== id);
+    }
 
 
     function toggle(){
@@ -342,6 +388,21 @@
     {/if}
 </div>
 
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1055;">
+    {#each toasts as toast (toast.id)}
+        <div transition:fade={{duration: 200}}>
+            <Toast isOpen={toast.isOpen} class="mb-3 shadow-sm border-{toast.color}">
+                <ToastHeader toggle={() => removeToast(toast.id)} icon={toast.color}>
+                    <strong class="me-auto text-{toast.color}">{toast.title}</strong>
+                </ToastHeader>
+                <ToastBody>
+                    {toast.message}
+                </ToastBody>
+            </Toast>
+        </div>
+    {/each}
+</div>
 
 <ConfirmModal 
     bind:isOpen={isConfirmModalOpen}
