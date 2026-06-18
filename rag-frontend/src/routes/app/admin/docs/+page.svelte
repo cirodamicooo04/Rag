@@ -26,17 +26,11 @@
     let loadingDocs = $state(false);
     let loadingDocsError = $state(null);
 
-    //deleting
-    let deletingLoading = $state(false);
-    let deletingError = $state(null);
 
     //deleting_dataset
     let deletingDatasetLoading = $state(false);
     let deletingDatasetError = $state(null);
 
-    //approving
-    let approvingLoading = $state(false);
-    let approvingError = $state(null);
 
     let isModalOpen = $state(false);
     let selectedFile = $state(null);
@@ -161,20 +155,27 @@
     }
 
     function promptDelete(id) {
-        confirmModalConfig = {
-            title: "Delete document",
-            message: "Do you really want to delete this document?",
-            confirmText: "Delete",
-            confirmColor: "danger",
-            onConfirm: () => handleDelete(id)
-        };
-        isConfirmModalOpen = true;
+        return new Promise((resolve, reject) => {
+            confirmModalConfig = {
+                title: "Delete document",
+                message: "Do you really want to delete this document?",
+                confirmText: "Delete",
+                confirmColor: "danger",
+                onConfirm: async () => {
+                    try {
+                        await handleDelete(id);
+                        resolve();
+                    } catch (e) {
+                        reject(e);
+                    }
+                },
+                onCancel: () => reject(new Error("Cancelled"))
+            };
+            isConfirmModalOpen = true;
+        });
     }
 
     async function handleDelete(id){
-        deletingLoading = true;
-        deletingError = null;
-
         try {
             await deleteDocument(id);
             docs = docs.filter(doc => doc.fileHash !== id);
@@ -182,36 +183,39 @@
             processingDocs = processingDocs.filter(doc => doc.fileHash !== id);
             quarantineDocs = quarantineDocs.filter(doc => doc.fileHash !== id);
         } catch (e) {
-            deletingError = e.message;
             console.error(e);
-        } finally {
-            deletingLoading = false;
+            throw e; // Propagate the error so the Promise in promptDelete is rejected
         }
     }
 
     function promptApprove(id) {
-        confirmModalConfig = {
-            title: "Approve document",
-            message: "Do you really want to approve this document?",
-            confirmText: "Approve",
-            confirmColor: "success",
-            onConfirm: () => handleApprove(id)
-        };
-        isConfirmModalOpen = true;
+        return new Promise((resolve, reject) => {
+            confirmModalConfig = {
+                title: "Approve document",
+                message: "Do you really want to approve this document?",
+                confirmText: "Approve",
+                confirmColor: "success",
+                onConfirm: async () => {
+                    try {
+                        await handleApprove(id);
+                        resolve();
+                    } catch (e) {
+                        reject(e);
+                    }
+                },
+                onCancel: () => reject(new Error("Cancelled"))
+            };
+            isConfirmModalOpen = true;
+        });
     }
 
     async function handleApprove(id){
-        approvingLoading = true;
-        approvingError = null;
-
         try {
             await approveDocument(id);
             await loadDocs(); // Ricarichiamo perché lo stato generale potrebbe essere cambiato
         } catch (e) {
-            approvingError = e.message;
             console.error(e);
-        } finally {
-            approvingLoading = false;
+            throw e; // Propagate the error so the Promise in promptApprove is rejected
         }
     }
 
@@ -321,6 +325,7 @@
                                          onApprove={() => {promptApprove(doc.fileHash)}}
                                          onDelete={() => {promptDelete(doc.fileHash)}}
                                          onSecurityStatus={() => goto(`/app/admin/docs/security-summary/${doc.fileHash}`)}
+                                         onOpenDetail={() => goto('/app/admin/docs/' + doc.fileHash)}
                                 />
                             {/each}
                         </div>
@@ -346,7 +351,6 @@
                             {#each processingDocs as doc (doc.fileHash)}
                                 <!-- Passiamo isProcessing al componente (se lo supporta) -->
                                 <DocCard document={doc}
-                                         isProcessing={true}
                                          onApprove={() => {promptApprove(doc.fileHash)}}
                                          onDelete={() => {promptDelete(doc.fileHash)}}
                                          onSecurityStatus={() => goto(`/app/admin/docs/security-summary/${doc.fileHash}`)}
@@ -377,6 +381,7 @@
                                          onApprove={() => {promptApprove(doc.fileHash)}}
                                          onDelete={() => {promptDelete(doc.fileHash)}}
                                          onSecurityStatus={() => goto(`/app/admin/docs/security-summary/${doc.fileHash}`)}
+                                         onOpenDetail={() => goto('/app/admin/docs/' + doc.fileHash)}
                                 />
                             {/each}
                         </div>
@@ -411,6 +416,7 @@
     confirmText={confirmModalConfig.confirmText}
     confirmColor={confirmModalConfig.confirmColor}
     onConfirm={confirmModalConfig.onConfirm}
+    onCancel={confirmModalConfig.onCancel}
 />
 
 <style>
@@ -434,7 +440,6 @@
         font-weight: 750;
     }
 
-    /* Propaghiamo l'altezza flex ai componenti interni di Sveltestrap */
     :global(.tab-content) {
         display: flex;
         flex-direction: column;
@@ -455,6 +460,7 @@
         overflow-x: hidden;
         padding-right: 0.5rem;
         padding-bottom: 2rem;
+        padding-top: 1rem;
         scrollbar-width: thin;
     }
 

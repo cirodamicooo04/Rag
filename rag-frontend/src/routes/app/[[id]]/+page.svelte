@@ -8,6 +8,18 @@
     let messages = $state([])
     let sequence_number = $state(0)
 
+    // colleghiamo il div dei messaggi per lo scroll automatico
+    let chatContainer;
+
+    // auto scroll effect
+    $effect(() => {
+        const trigger = messages.length;
+
+        if (chatContainer) {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    });
+
     let loading = $state(false)
     let error = $state(null)
 
@@ -23,18 +35,33 @@
     let loading_conversation = $state(false)
     let loading_conversation_error = $state(null)
 
+    const DRAFT_KEY = "rag_chat_draft";
+
     $effect(() => {
-        // Leggiamo l'id dallo store di SvelteKit
         const id = page.params.id;
 
         if (id) {
-            // Se l'ID esiste nell'URL, svuota la chat attuale e carica quella dal BE
             loadConversation(id);
         } else {
-            // Se siamo su /app (senza ID), resetta lo stato per una nuova chat
-            messages = [];
-            sequence_number = 0;
-            conversation_title = "";
+            //proviamo a caricare i messaggi salvati nel sessionStorage
+            const savedDraft = sessionStorage.getItem(DRAFT_KEY);
+            if (savedDraft) {
+                let parsedMessages = JSON.parse(savedDraft);
+                parsedMessages.sort((a, b) => a.sequence_number - b.sequence_number);
+                sequence_number = parsedMessages.length > 0 ? Math.max(...parsedMessages.map(m => m.sequence_number)) : 0;
+                messages = parsedMessages;
+            } else {
+                messages = [];
+                sequence_number = 0;
+                conversation_title = "";
+            }
+        }
+    });
+
+    //salvataggio dei messaggi nel sessionStorage ogni cambio di stato dei messaggi
+    $effect(() => {
+        if (!page.params.id && messages.length > 0) {
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify(messages));
         }
     });
 
@@ -87,6 +114,9 @@
         try {
             await save_conversation(conversation_title, messagesToSave)
             saving_conversations_success = "Conversation saved successfully."
+            
+            //puliamo il sessionStorage dato che l'abbiamo salvata sul DB
+            sessionStorage.removeItem(DRAFT_KEY);
         } catch (e){
             saving_conversations_error = e.message
             console.error(e)
@@ -103,8 +133,9 @@
 
         try {
             const conversation = await getConversation(id)
-            messages = conversation.messages
-            messages.sort((a, b) => a.sequence_number < b.sequence_number)
+            let loadedMessages = conversation.messages
+            loadedMessages.sort((a, b) => a.sequence_number - b.sequence_number)
+            messages = loadedMessages
 
             sequence_number = messages.length > 0 ? Math.max(...messages.map(m => m.sequence_number)) : 0
         } catch (e){
@@ -160,7 +191,7 @@
         </div>
     </header>
 
-    <div class="message-container">
+    <div class="message-container" bind:this={chatContainer}>
         {#if messages.length === 0}
             <div class="empty-state">
                 <h2>Inizia una conversazione</h2>

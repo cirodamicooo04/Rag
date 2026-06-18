@@ -17,3 +17,15 @@ class DocumentDTO(CamelModel):
 
 def to_document_dto(doc: Document):
     return DocumentDTO.model_validate(doc)
+
+class DocumentDetailDTO(CamelModel):
+    file_hash: str
+    file_name:str
+    file_type:str
+    status:str
+    text:str
+
+    model_config = ConfigDict(from_attributes=True)
+
+def to_document_detail_dto(doc: Document):
+    return DocumentDetailDTO.model_validate(doc)

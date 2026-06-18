@@ -6,6 +6,12 @@ export function getDocuments(){
     })
 }
 
+export function getDocument(document_hash){
+    return apiFetch(`/admin/docs/${document_hash}`, {
+        auth: "required"
+    })
+}
+
 export function getProcessingDocumentsStatus(hashes){
     const queryParams = new URLSearchParams();
 

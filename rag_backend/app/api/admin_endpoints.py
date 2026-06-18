@@ -12,7 +12,7 @@ from app.core.config import UPLOAD_DIR, NORMALIZATION_DOCUMENT, DOCUMENT_CLASSIF
 from app.core.utils import sha256_file, deterministic_chunk_id
 from app.crud import crud_docs
 from app.db.database import get_db
-from app.schemas.document import DocumentDTO, to_document_dto
+from app.schemas.document import DocumentDTO, to_document_dto, to_document_detail_dto
 from app.schemas.logs import LogResponse
 from app.schemas.quarantined_documents_detail import QuarantinedDocumentDTO, QuarantinedChunksDTO
 from app.security.auth_guard import require_role, get_current_user
@@ -229,6 +229,14 @@ async def get_document_status(hashes: list[str] | None = Query(None), db: Sessio
         )
 
     return result
+
+@router.get("/docs/{doc_hash}")
+async def get_document_by_hash(doc_hash: str, db: Session = Depends(get_db)):
+    document = crud_docs.get_document_by_hash(db, doc_hash)
+    if not document:
+        raise HTTPException(status_code=404, detail=f"Document with hash: {doc_hash} not found")
+
+    return to_document_detail_dto(document).model_dump(by_alias=True)
 
 @router.get("/docs/{doc_hash}/security-summary")
 async def get_document_security_summary(doc_hash: str, db: Session = Depends(get_db)):
