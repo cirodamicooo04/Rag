@@ -1,11 +1,11 @@
 <script>
     import { Card, CardBody, CardTitle, CardSubtitle, CardText, Button, Badge, Progress } from '@sveltestrap/sveltestrap';
 
-    let { document, onDelete, onApprove, onSecurityStatus, onOpenDetail} = $props();
+    let { document, onDelete, onApprove, onSecurityStatus, onOpenDetail, onRetry} = $props();
 
     let statusColor = $derived(
         document.status === 'INDEXED' ? 'success' :
-        document.status === ('REJECTED_SECURITY' || 'PARTIALLY_INDEXED') ? 'danger' :
+        ['REJECTED_SECURITY', 'PARTIALLY_INDEXED', 'ERROR'].includes(document.status) ? 'danger' :
         document.status === 'PROCESSING' ? 'warning' : 'secondary'
     );
 
@@ -15,6 +15,7 @@
 
     let isQuarantined = $derived(document.status === 'PARTIALLY_INDEXED' || document.status === 'REJECTED_SECURITY');
     let isProcessing = $derived(document.status === 'PROCESSING');
+    let isError = $derived(document.status === 'ERROR');
 
     function handleOpenDetail() {
         if (onOpenDetail) {
@@ -24,6 +25,7 @@
 
     let isDeleting = $state(false);
     let isApproving = $state(false);
+    let isRetrying = $state(false);
 
     async function handleDeleteClick(e) {
         e.stopPropagation();
@@ -32,7 +34,7 @@
             try {
                 await onDelete(document);
             } catch (error) {
-                // Ignored (cancellation or error handled by parent)
+
             } finally {
                 isDeleting = false;
             }
@@ -46,9 +48,25 @@
             try {
                 await onApprove(document);
             } catch (error) {
-                // Ignored (cancellation or error handled by parent)
+
             } finally {
                 isApproving = false;
+            }
+        }
+    }
+
+    async function handleRetry(e){
+        if (!isError) return;
+        e.stopPropagation();
+
+        if (onRetry) {
+            isRetrying = true;
+            try {
+                await onRetry(document);
+            } catch (error) {
+
+            } finally {
+                isRetrying = false;
             }
         }
     }
@@ -118,6 +136,11 @@
                     {#if isQuarantined}
                         <Button size="sm" color="success" class="fw-semibold" onclick={handleApproveClick} disabled={!isQuarantined || isApproving || isDeleting}>
                             {isApproving ? '...' : 'Approve'}
+                        </Button>
+                    {/if}
+                    {#if isError}
+                        <Button size="sm" color="secondary" class="fw-semibold" onclick={handleRetry} disabled={isDeleting}>
+                            {isRetrying ? '...' : 'Retry'}
                         </Button>
                     {/if}
                     <Button size="sm" color="danger" class="fw-semibold" onclick={handleDeleteClick} disabled={isProcessing || isDeleting || isApproving}>

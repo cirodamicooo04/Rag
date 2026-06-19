@@ -176,3 +176,17 @@ def delete_chunk(db, chunk_id):
     if chunk:
         db.delete(chunk)
         db.commit()
+
+
+def prepare_error_document_for_processing(db, file_hash):
+    document = db.query(Document).filter(Document.file_hash == file_hash).first()
+
+    document.text = ""
+
+    db.query(Chunk).filter(Chunk.document_hash == file_hash).delete()
+    document.status = "PROCESSING"
+
+    db.commit()
+    db.refresh(document)
+    return document
+

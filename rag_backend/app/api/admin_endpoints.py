@@ -12,6 +12,7 @@ from app.core.config import UPLOAD_DIR, NORMALIZATION_DOCUMENT, DOCUMENT_CLASSIF
 from app.core.utils import sha256_file, deterministic_chunk_id
 from app.crud import crud_docs
 from app.db.database import get_db
+from app.db.models import Document
 from app.schemas.document import DocumentDTO, to_document_dto, to_document_detail_dto
 from app.schemas.logs import LogResponse
 from app.schemas.quarantined_documents_detail import QuarantinedDocumentDTO, QuarantinedChunksDTO
@@ -20,6 +21,7 @@ from app.services import ingester, chunker, indexer, query
 from app.services.document_parser import remove_document_header, parse_document_metadata
 from app.guardrails.document.layers.normalizer import normalize_document_text
 from app.guardrails.document.layers.document_classifier import DocumentCategory, classify_document
+from app.task import background_tasks
 from app.task.background_tasks import process_document_pipeline
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role("ADMIN"))])
@@ -56,6 +58,23 @@ async def upload_and_process_document(background_tasks: BackgroundTasks ,file: U
     background_tasks.add_task(process_document_pipeline, file_hash, str(final_path))
 
     dto = to_document_dto(new_document).model_dump(by_alias=True)
+    return dto
+
+@router.post("/docs/{file_hash}/retry")
+async def retry_processing_document(file_hash: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    document = crud_docs.get_document_by_hash(db, file_hash)
+    if not document:
+        raise HTTPException(status_code=404, detail=f"Document with hash: {file_hash} not found")
+
+    if document.status != "ERROR":
+        raise HTTPException(status_code=400, detail=f"Document with hash: {file_hash} is not in error status")
+
+    #Cancello eventuali chunk creati di quel file e svuoto text
+    new_document = crud_docs.prepare_error_document_for_processing(db, file_hash)
+
+    background_tasks.add_task(process_document_pipeline, file_hash, new_document.file_path)
+    dto = to_document_dto(new_document).model_dump(by_alias=True)
+
     return dto
 
 

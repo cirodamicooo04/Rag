@@ -74,3 +74,10 @@ export function uploadDocument(file){
         body: file
     })
 }
+
+export function retryDocument(document_hash){
+    return apiFetch("/admin/docs/" + document_hash + "/retry", {
+        auth: "required",
+        method: "POST"
+    })
+}

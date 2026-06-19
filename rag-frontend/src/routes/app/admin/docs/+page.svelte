@@ -1,6 +1,13 @@
 <script>
     import { onMount } from "svelte";
-    import {getDocuments, deleteDocument, approveDocument, uploadDocument, getProcessingDocumentsStatus} from "$lib/api/document.js";
+    import {
+        getDocuments,
+        deleteDocument,
+        approveDocument,
+        uploadDocument,
+        getProcessingDocumentsStatus,
+        retryDocument
+    } from "$lib/api/document.js";
     import DocCard from "$lib/components/DocCard.svelte";
     import { goto } from "$app/navigation";
     import {Alert, Badge, Button, Input, Modal, ModalBody, ModalFooter, ModalHeader, TabContent, TabPane, Toast, ToastBody, ToastHeader} from "@sveltestrap/sveltestrap";
@@ -12,6 +19,7 @@
     let readyDocs = $state([])
     let processingDocs = $state([])
     let quarantineDocs = $state([])
+    let errorDocs = $state([])
 
     // Modal state
     let isConfirmModalOpen = $state(false);
@@ -49,7 +57,11 @@
                 const docs = await getProcessingDocumentsStatus(processingDocs.map(doc => doc.fileHash));
 
                 docs.forEach(doc => {
-                    if (doc.status !== "PROCESSING"){
+                    if (doc.status === "ERROR"){
+                        processingDocs = processingDocs.filter(d => d.fileHash !== doc.fileHash);
+                        errorDocs.push(doc);
+                        showToast(doc, false, true)
+                    } else if (doc.status !== "PROCESSING"){
                         processingDocs = processingDocs.filter(d => d.fileHash !== doc.fileHash);
                         if (doc.status === "INDEXED"){
                             readyDocs.push(doc)
@@ -68,13 +80,21 @@
         return () => clearInterval(interval);
     })
 
-    function showToast(doc, success = true){
+    function showToast(doc, success = true, error = false){
         //id casuale univoco
         const id = Date.now() + Math.random();
+
+        let titleString = success ? "Document processed" : "Security warning";
+        let messageString = success ? `Document ${doc.fileName} processed successfully` : `Document ${doc.fileName} has been processed with security warnings.`;
+        if (!success && error){
+            titleString = "Error while processing document"
+            messageString = `An error occurred while processing the document ${doc.fileName}. Please try again later.`
+        }
+
         const newToast = {
             id,
-            title: success ? "Document processed" : "Security warning",
-            message: success ? `Document ${doc.fileName} processed successfully` : `Document ${doc.fileName} has been processed with security warnings.`,
+            title: titleString,
+            message: messageString,
             color: success ? "success" : "danger",
             isOpen: true
         };
@@ -133,12 +153,15 @@
             readyDocs = [];
             processingDocs = [];
             quarantineDocs = [];
+            errorDocs = [];
             
             response.forEach(doc => {
                 if (doc.status === "INDEXED"){
                     readyDocs.push(doc)
                 } else if (doc.status === "REJECTED_SECURITY" || doc.status === "PARTIALLY_INDEXED"){
                     quarantineDocs.push(doc)
+                } else if (doc.status === "ERROR") {
+                    errorDocs.push(doc)
                 } else {
                     processingDocs.push(doc)
                 }
@@ -182,9 +205,21 @@
             readyDocs = readyDocs.filter(doc => doc.fileHash !== id);
             processingDocs = processingDocs.filter(doc => doc.fileHash !== id);
             quarantineDocs = quarantineDocs.filter(doc => doc.fileHash !== id);
+            errorDocs = errorDocs.filter(doc => doc.fileHash !== id);
         } catch (e) {
             console.error(e);
             throw e; // Propagate the error so the Promise in promptDelete is rejected
+        }
+    }
+
+    async function handleRetry(id) {
+        try {
+            const doc = await retryDocument(id);
+            errorDocs = errorDocs.filter(d => d.fileHash !== id);
+            processingDocs.push(doc);
+        } catch (e) {
+            console.error(e);
+            throw e;
         }
     }
 
@@ -240,6 +275,7 @@
             readyDocs = [];
             processingDocs = [];
             quarantineDocs = [];
+            errorDocs = [];
 
         } catch (e) {
             deletingDatasetError = e.message;
@@ -382,6 +418,32 @@
                                          onDelete={() => {promptDelete(doc.fileHash)}}
                                          onSecurityStatus={() => goto(`/app/admin/docs/security-summary/${doc.fileHash}`)}
                                          onOpenDetail={() => goto('/app/admin/docs/' + doc.fileHash)}
+                                />
+                            {/each}
+                        </div>
+                    {/if}
+                </div>
+            </TabPane>
+
+            <!-- ERROR TAB -->
+            <TabPane tabId="error">
+                <span slot="tab" class="fw-bold text-danger">
+                    Error 
+                    {#if errorDocs.length > 0}
+                        <Badge color="danger" class="ms-1">{errorDocs.length}</Badge>
+                    {/if}
+                </span>
+                <div class="scrollable-content mt-3">
+                    {#if errorDocs.length === 0}
+                        <div class="empty-state">
+                            <p>No documents in error state.</p>
+                        </div>
+                    {:else}
+                        <div class="documents-grid">
+                            {#each errorDocs as doc (doc.fileHash)}
+                                <DocCard document={doc}
+                                         onDelete={() => {promptDelete(doc.fileHash)}}
+                                         onRetry={() => {handleRetry(doc.fileHash)}}
                                 />
                             {/each}
                         </div>

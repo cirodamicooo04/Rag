@@ -57,11 +57,6 @@ def process_document_pipeline(file_hash: str, temp_path_str: str):
 
         crud_docs.update_document_index_status(db, file_hash)
 
-    except Exception as e:
-        crud_docs.update_document_status(db, file_hash, new_status="ERROR")
-        print(f"Error processing document {file_hash}: {e}")
-    finally:
-        db.close()
         # Elimina il file temporaneo alla fine del processo per non intasare l'hard disk
         path_to_delete = Path(temp_path_str)
         if path_to_delete.exists():
@@ -69,3 +64,11 @@ def process_document_pipeline(file_hash: str, temp_path_str: str):
                 path_to_delete.unlink()
             except Exception as e:
                 print(f"Errore durante l'eliminazione del file temporaneo {temp_path_str}: {e}")
+
+    except Exception as e:
+        crud_docs.update_document_status(db, file_hash, new_status="ERROR")
+        print(f"Error processing document {file_hash}: {e}")
+    finally:
+        db.close()
+
+
