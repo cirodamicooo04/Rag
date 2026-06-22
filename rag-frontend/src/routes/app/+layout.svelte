@@ -7,6 +7,11 @@ import {isAuthenticated, login, logout} from "$lib/auth/keycloak.js";
 let {children} = $props();
 let sidebarOpen = $state(true);
 
+function handleLogout(){
+    sessionStorage.clear();
+    logout()
+}
+
 </script>
 
 <div class="app-shell">
@@ -39,7 +44,7 @@ let sidebarOpen = $state(true);
                             {#if !isAuthenticated()}
                                 <Button color="primary" onclick={login}>Login</Button>
                             {:else}
-                                <Button color="danger" onclick={logout}>Logout</Button>
+                                <Button color="danger" onclick={handleLogout}>Logout</Button>
                             {/if}
                         </NavItem>
                     </Nav>
