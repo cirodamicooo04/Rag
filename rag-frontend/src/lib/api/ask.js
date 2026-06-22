@@ -8,3 +8,12 @@ export function ask(question) {
         body: JSON.stringify({question} )
     })
 }
+
+export function askDebug(question) {
+    return apiFetch("/admin/ask-debug", {
+        auth: "required",
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({question} )
+    })
+}
