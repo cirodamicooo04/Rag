@@ -1,8 +1,6 @@
 import shutil
 from pathlib import Path
-import hashlib
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, File, UploadFile, Depends, HTTPException, BackgroundTasks
 from fastapi.params import Query
@@ -12,7 +10,7 @@ from app.core.config import UPLOAD_DIR, NORMALIZATION_DOCUMENT, DOCUMENT_CLASSIF
 from app.core.utils import sha256_file, deterministic_chunk_id
 from app.crud import crud_docs
 from app.db.database import get_db
-from app.db.models import Document
+from app.schemas.ask_request import AskRequest
 from app.schemas.document import DocumentDTO, to_document_dto, to_document_detail_dto
 from app.schemas.logs import LogResponse
 from app.schemas.quarantined_documents_detail import QuarantinedDocumentDTO, QuarantinedChunksDTO
@@ -21,7 +19,6 @@ from app.services import ingester, chunker, indexer, query
 from app.services.document_parser import remove_document_header, parse_document_metadata
 from app.guardrails.document.layers.normalizer import normalize_document_text
 from app.guardrails.document.layers.document_classifier import DocumentCategory, classify_document
-from app.task import background_tasks
 from app.task.background_tasks import process_document_pipeline
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role("ADMIN"))])
@@ -213,14 +210,15 @@ async def index_chunks(db: Session = Depends(get_db)):
     }
 
 @router.post("/ask-debug")
-async def ask_query_debug(question: str, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+async def ask_query_debug(request: AskRequest, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    question = request.question
     if not question.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
     try:
         answer = query.get_answer(user_query=question,user=user, db=db , debug=True)
 
-        return {"answer": answer}
+        return answer
     except Exception as e:
         print(f"Error processing query: {e}")
         raise HTTPException(status_code=500, detail="Error processing query")

@@ -22,7 +22,7 @@ async def ask_query(request: AskRequest, db: Session = Depends(get_db), user: di
     try:
         answer = get_answer(user_query=question, user=user , db=db)
 
-        return {"answer": answer}
+        return answer
     except Exception as e:
         print(f"Error processing query: {e}")
         raise HTTPException(status_code=500, detail="Error processing query")

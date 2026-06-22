@@ -1,12 +1,20 @@
 <script>
-    import {Alert, Badge, Button, Input, Modal, ModalBody, ModalFooter, ModalHeader} from "@sveltestrap/sveltestrap"
-    import {ask} from "$lib/api/ask.js"
+    import {Alert, Badge, Button, Input, Modal, ModalBody, ModalFooter, ModalHeader, Collapse} from "@sveltestrap/sveltestrap"
+    import {ask, askDebug} from "$lib/api/ask.js"
     import {getConversation, save_conversation} from "$lib/api/conversation.js"
+    import {getRoles} from "$lib/auth/keycloak.js"
     import {page} from "$app/state"
 
     let query = $state("")
     let messages = $state([])
     let sequence_number = $state(0)
+
+    let isAdmin = $state(false)
+    let debugMode = $state(false)
+
+    $effect(() => {
+        isAdmin = getRoles().includes("ADMIN")
+    })
 
     // colleghiamo il div dei messaggi per lo scroll automatico
     let chatContainer;
@@ -78,12 +86,14 @@
         saving_conversations_success = null
 
         try {
-            const response = await ask(userQuery)
+            const response = await (debugMode ? askDebug(userQuery) : ask(userQuery))
             sequence_number += 1
             messages.push({
                 role: "assistant",
                 variant: "answer",
                 content: response.answer,
+                debug_info: debugMode ? response : null,
+                isExpanded: false,
                 sequence_number: sequence_number
             })
 
@@ -167,6 +177,12 @@
         </div>
 
         <div class="chat-actions">
+            {#if isAdmin}
+                <div class="d-flex align-items-center mb-1">
+                    <Input type="switch" id="debugSwitch" bind:checked={debugMode} label="Debug Mode" />
+                </div>
+            {/if}
+
             <div class="thinking-slot">
                 {#if loading}
                     <Badge color="secondary" pill>Sto pensando...</Badge>
@@ -223,6 +239,35 @@
                         {:else}
                             <div class:user-bubble={message.role === "user"} class="message-bubble">
                                 {message.content}
+
+                                {#if message.debug_info}
+                                    <div class="mt-3">
+                                        <Button color="secondary" size="sm" onclick={() => message.isExpanded = !message.isExpanded}>
+                                            {message.isExpanded ? 'Nascondi Debug' : 'Mostra Debug'}
+                                        </Button>
+                                        <Collapse isOpen={message.isExpanded} class="mt-2">
+                                            <div class="p-3 bg-light border rounded text-dark text-start" style="font-size: 0.85rem; max-width: 100%; overflow-x: auto;">
+                                                {#if message.debug_info.originalQuery}
+                                                    <div><strong>Original Query:</strong> {message.debug_info.originalQuery}</div>
+                                                {/if}
+                                                {#if message.debug_info.finalQuery}
+                                                    <div><strong>Final Query:</strong> {message.debug_info.finalQuery}</div>
+                                                {/if}
+                                                {#if message.debug_info.retrievedContext && message.debug_info.retrievedContext.length > 0}
+                                                    <div class="mt-2"><strong>Retrieved Context:</strong></div>
+                                                    <ul class="mb-0 ps-3 mt-1">
+                                                        {#each message.debug_info.retrievedContext as context}
+                                                            <li class="mb-2">
+                                                                <div><strong>Score:</strong> {context.score}</div>
+                                                                <div><strong>Text:</strong> <span class="text-muted">{context.text}</span></div>
+                                                            </li>
+                                                        {/each}
+                                                    </ul>
+                                                {/if}
+                                            </div>
+                                        </Collapse>
+                                    </div>
+                                {/if}
                             </div>
                         {/if}
                     </div>

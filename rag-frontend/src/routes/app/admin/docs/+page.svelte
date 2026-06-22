@@ -428,7 +428,7 @@
             <!-- ERROR TAB -->
             <TabPane tabId="error">
                 <span slot="tab" class="fw-bold text-danger">
-                    Error 
+                    Failed
                     {#if errorDocs.length > 0}
                         <Badge color="danger" class="ms-1">{errorDocs.length}</Badge>
                     {/if}

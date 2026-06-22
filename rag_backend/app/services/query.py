@@ -11,6 +11,8 @@ from app.guardrails.input.input_policy import InputGuardrailDecision
 from app.guardrails.input.input_orchestrator import validate_input_query
 from app.guardrails.output.output_orchestrator import validate_output
 from app.guardrails.output.output_policy import OutputGuardrailDecision
+from app.schemas.ask import RetrievedNode, AskResponse
+
 
 def get_retriever():
     vector_store = QdrantVectorStore(client=qdrant_client, collection_name=COLLECTION_NAME)
@@ -119,13 +121,8 @@ RISPOSTA:
 def serialize_retrieved_node(node_with_score, rank: int):
     node = node_with_score.node
 
-    return {
-        "rank": rank,
-        "score": getattr(node_with_score, "score", None),
-        "node_id": getattr(node, "node_id", None),
-        "text": node.text,
-        "metadata": node.metadata or {}
-    }
+    return RetrievedNode(rank = rank, score = getattr(node_with_score, "score", None), node_id = getattr(node, "node_id", None), text = node.text, metadata = node.metadata or {})
+
 
 
 def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
@@ -149,10 +146,10 @@ def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
         )
 
         #Solo in fase di sviluppo per eventuali misurazioni, da sostituire con safe refusal
-        return f"Non posso soddisfare questa richiesta. Blocked by: {input_guardrail_result.blocked_by}."
+        return AskResponse(answer=f"Non posso soddisfare questa richiesta. Blocked by: {input_guardrail_result.blocked_by}.")
 
     if input_guardrail_result.decision == InputGuardrailDecision.ALLOW_GENERAL_CHAT:
-        return "Ciao, posso aiutarti con qualsiasi domanda riguardare il corso di studi in informatica dell'Unical!"
+        return AskResponse(answer="Ciao, posso aiutarti con qualsiasi domanda riguardare il corso di studi in informatica dell'Unical!")
 
     user_final_query = input_guardrail_result.final_text
 
@@ -187,16 +184,11 @@ def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
             reason=output_guardrail_result.reason
         )
         # Solo in fase di sviluppo per eventuali misurazioni, da sostituire con safe refusal
-        return f"Non posso soddisfare questa richiesta. Blocked by: {output_guardrail_result.blocked_by}."
+        return AskResponse(answer=f"Non posso soddisfare questa richiesta. Blocked by: {output_guardrail_result.blocked_by}.")
 
     if debug:
         retrieved_context = [serialize_retrieved_node(node_with_score, rank) for rank, node_with_score in enumerate(nodes, start=1)]
 
-        return {
-            "answer": response.text,
-            "original_query": user_query,
-            "final_query": user_final_query,
-            "retrieved_context": retrieved_context
-        }
+        return AskResponse(answer=response.text, original_query=user_query, final_query=user_final_query, retrieved_context=retrieved_context)
 
-    return response.text
+    return AskResponse(answer=response.text)
