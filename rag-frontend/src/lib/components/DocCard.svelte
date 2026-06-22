@@ -127,7 +127,7 @@
 
             <div class="d-flex mt-auto pt-3 border-top">
                 {#if isQuarantined}
-                    <Button size="sm" color="primary" class="text-white fw-semibold" onclick|stopPropagation={() => onSecurityStatus?.(document)}>
+                    <Button size="sm" color="primary" class="text-white fw-semibold" onclick={(e) => { e.stopPropagation(); onSecurityStatus?.(document); }}>
                         Security summary
                     </Button>
                 {/if}

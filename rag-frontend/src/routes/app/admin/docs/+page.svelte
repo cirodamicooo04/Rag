@@ -348,7 +348,10 @@
         <TabContent>
             <!-- READY TAB -->
             <TabPane tabId="ready" active>
-                <span slot="tab" class="fw-bold">Ready</span>
+                <span slot="tab" class="fw-bold">
+                    Ready
+                    <Badge color="primary" class="ms-1">{readyDocs.length}</Badge>
+                </span>
                 <div class="scrollable-content mt-3">
                     {#if readyDocs.length === 0}
                         <div class="empty-state">

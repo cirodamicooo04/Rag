@@ -15,7 +15,6 @@ export function getDocument(document_hash){
 export function getProcessingDocumentsStatus(hashes){
     const queryParams = new URLSearchParams();
 
-    queryParams.append("status", "PROCESSING");
     if (hashes.length > 0){
         hashes.forEach(hash => queryParams.append("hashes", hash));
     }
