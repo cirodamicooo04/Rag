@@ -116,6 +116,7 @@ async def ingest_documents(db: Session = Depends(get_db)):
 
             crud_docs.update_document_text(db, doc.file_hash, extracted_text, new_status="INGESTED")
         except Exception as e:
+            db.rollback()
             crud_docs.update_document_status(db, doc.file_hash, new_status="ERROR")
             print(f"Error processing document {doc.file_hash}: {e}")
             error_while_ingesting = True
@@ -147,6 +148,7 @@ async def make_chunks(db: Session = Depends(get_db)):
 
             crud_docs.update_document_status(db, doc.file_hash, new_status="CHUNKED")
         except Exception as e:
+            db.rollback()
             crud_docs.update_document_status(db, doc.file_hash, new_status="ERROR_CHUNKING")
             print(f"Error processing document {doc.file_hash}: {e}")
             error_while_chunking = True
@@ -379,10 +381,10 @@ async def get_logs(db: Session = Depends(get_db)):
             id=log.id,
             user_id=log.user_id,
             original_query=log.original_query,
-            final_query=log.final_query,
+            final_query=log.final_query or "",
             blocked_stage=log.blocked_stage,
             blocked_by=log.blocked_by,
-            reason=log.reason,
+            reason=log.reason or "",
             created_at=log.created_at.isoformat()
         ).model_dump(by_alias=True) for log in logs
     ]

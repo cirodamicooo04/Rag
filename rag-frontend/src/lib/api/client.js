@@ -56,8 +56,22 @@ export async function apiFetch(path, options = {}) {
     }
 
     if (!res.ok) {
-        const message = await res.text();
-        throw new Error(message || "Request failed.");
+        let message = "Request failed.";
+        const text = await res.text();
+        if (text) {
+            try {
+                const data = JSON.parse(text);
+                message = data.detail || data.message || text;
+                if (Array.isArray(message)) {
+                    message = message.map(err => err.msg || err).join(", ");
+                } else if (typeof message === 'object') {
+                    message = JSON.stringify(message);
+                }
+            } catch {
+                message = text;
+            }
+        }
+        throw new Error(message);
     }
 
     const contentType = res.headers.get('content-type');

@@ -6,7 +6,8 @@
         approveDocument,
         uploadDocument,
         getProcessingDocumentsStatus,
-        retryDocument
+        retryDocument,
+        deleteDataset
     } from "$lib/api/document.js";
     import DocCard from "$lib/components/DocCard.svelte";
     import { goto } from "$app/navigation";
@@ -42,6 +43,7 @@
 
     let isModalOpen = $state(false);
     let selectedFile = $state(null);
+    let fileInputValue = $state("");
     let uploadStatus = $state({loading: false, error: null, success: false});
 
     //TOAST
@@ -114,6 +116,7 @@
     function toggle(){
         if (isModalOpen){
             selectedFile = null;
+            fileInputValue = "";
             uploadStatus = {error: null, success: false};
         }
         isModalOpen = !isModalOpen;
@@ -129,8 +132,9 @@
             formData.append("file", selectedFile[0]);
             const response = await uploadDocument(formData);
             processingDocs.push(response);
-
             uploadStatus.success = true;
+            selectedFile = null;
+            fileInputValue = "";
         } catch (e) {
             uploadStatus.error = e.message;
             console.error(e);
@@ -260,7 +264,7 @@
             message: "Do you really want to delete the dataset?",
             confirmText: "Delete",
             confirmColor: "danger",
-            onConfirm: handleDeleteDataset
+            onConfirm: handleDeleteDataset,
         };
         isConfirmModalOpen = true;
     }
@@ -294,15 +298,15 @@
     </ModalHeader>
     <ModalBody>
         {#if uploadStatus.error}
-            <Alert color="danger">Error while uploading file</Alert>
+            <Alert color="danger">Error while uploading file: {uploadStatus.error}</Alert>
         {/if}
         {#if uploadStatus.success}
             <Alert color="success">File uploaded with success</Alert>
         {/if}
 
-        <Input type="file" bind:files={selectedFile} accept=".txt" disabled={uploadStatus.loading || uploadStatus.success}/>
+        <Input type="file" bind:files={selectedFile} bind:value={fileInputValue} accept=".txt" disabled={uploadStatus.loading} onchange={() => { uploadStatus.error = null; uploadStatus.success = false; }}/>
 
-        {#if selectedFile}
+        {#if selectedFile && selectedFile.length > 0}
             <div class="pt-3">
                 <strong class="text-success">File ready to upload</strong>
             </div>
@@ -311,7 +315,7 @@
     </ModalBody>
 
     <ModalFooter>
-        <Button color="primary" disabled={uploadStatus.loading || !selectedFile || uploadStatus.success} onclick={handleUpload}>
+        <Button color="primary" disabled={uploadStatus.loading || !selectedFile || selectedFile.length === 0} onclick={handleUpload}>
             Upload
         </Button>
 
@@ -327,7 +331,7 @@
     <header class="page-header d-flex align-items-center justify-content-between">
         <h1>Documents</h1>
         <div class="d-flex gap-2">
-            <Button color="danger" onclick={promptDeleteDataset} disabled={deletingDatasetLoading || docs.length === 0}>
+            <Button color="danger" onclick={promptDeleteDataset} disabled={deletingDatasetLoading || (readyDocs.length === 0 && processingDocs.length === 0 && quarantineDocs.length === 0 && errorDocs.length === 0)}>
                 Delete dataset
             </Button>
             <Button color="primary" class="fw-semibold shadow-sm" disabled={loadingDocs || loadingDocsError} onclick={toggle}>

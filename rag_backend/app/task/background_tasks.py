@@ -66,6 +66,7 @@ def process_document_pipeline(file_hash: str, temp_path_str: str):
                 print(f"Errore durante l'eliminazione del file temporaneo {temp_path_str}: {e}")
 
     except Exception as e:
+        db.rollback()
         crud_docs.update_document_status(db, file_hash, new_status="ERROR")
         print(f"Error processing document {file_hash}: {e}")
     finally:
