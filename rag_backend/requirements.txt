@@ -31,7 +31,7 @@ fastapi==0.136.1
 filelock==3.29.0
 filetype==1.2.0
 frozenlist==1.8.0
-fsspec==2026.4.0
+fsspec<=2026.2.0
 fuzzysearch==0.8.1
 greenlet==3.5.0
 griffe==2.0.2
@@ -104,7 +104,7 @@ safetensors==0.7.0
 scikit-learn==1.8.0
 scipy==1.17.1
 sentence-transformers==5.4.1
-setuptools==82.0.1
+setuptools<82
 shellingham==1.5.4
 six==1.17.0
 smart_open==7.6.1
