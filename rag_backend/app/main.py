@@ -18,14 +18,7 @@ models.Base.metadata.create_all(bind=engine)
 #Creo la cartella docs per i file caricati
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    if INITIALIZE_GUARDRAILS_DB:
-        populate_guardrails.run_indexing()
-
-    yield
-
-app = FastAPI(title="RAG", lifespan=lifespan)
+app = FastAPI(title="RAG")
 
 app.add_middleware(
     CORSMiddleware,

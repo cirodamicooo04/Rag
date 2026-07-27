@@ -19,15 +19,7 @@ class InputGuardrailResult:
     blocked_by: Optional[str] = None
     reasons: Optional[str] = None
 
-def decide(original_query: str, normalized_query: str, semantic_firewall_safe:bool, llm_guard_safe:bool, intent_classifier_result: IntentClassifierResult ) -> InputGuardrailResult:
-    if not semantic_firewall_safe:
-        return InputGuardrailResult(decision=InputGuardrailDecision.BLOCK,
-                                    original_query=original_query,
-                                    final_text=normalized_query,
-                                    blocked_by="Semantic Firewall",
-                                    reasons="Query violates semantic firewall security protocol"
-                                    )
-
+def decide(original_query: str, normalized_query: str, llm_guard_safe:bool, intent_classifier_result: IntentClassifierResult ) -> InputGuardrailResult:
     if not llm_guard_safe:
         return InputGuardrailResult(decision=InputGuardrailDecision.BLOCK,
                                     original_query=original_query,

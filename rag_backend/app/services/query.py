@@ -145,8 +145,8 @@ def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
             reason=input_guardrail_result.reasons
         )
 
-        #Solo in fase di sviluppo per eventuali misurazioni, da sostituire con safe refusal
-        return AskResponse(answer=f"Non posso soddisfare questa richiesta. Blocked by: {input_guardrail_result.blocked_by}.")
+        # Safe refusal: non mostriamo i dettagli del blocco all'utente
+        return AskResponse(answer="Non posso soddisfare questa richiesta in quanto vìola le policy di sicurezza.")
 
     if input_guardrail_result.decision == InputGuardrailDecision.ALLOW_GENERAL_CHAT:
         return AskResponse(answer="Ciao, posso aiutarti con qualsiasi domanda riguardare il corso di studi in informatica dell'Unical!")
@@ -183,8 +183,8 @@ def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
             blocked_by=output_guardrail_result.blocked_by,
             reason=output_guardrail_result.reason
         )
-        # Solo in fase di sviluppo per eventuali misurazioni, da sostituire con safe refusal
-        return AskResponse(answer=f"Non posso soddisfare questa richiesta. Blocked by: {output_guardrail_result.blocked_by}.")
+        # Safe refusal: non mostriamo i dettagli del blocco all'utente
+        return AskResponse(answer="Non posso soddisfare questa richiesta in quanto vìola le policy di sicurezza.")
 
     if debug:
         retrieved_context = [serialize_retrieved_node(node_with_score, rank) for rank, node_with_score in enumerate(nodes, start=1)]
