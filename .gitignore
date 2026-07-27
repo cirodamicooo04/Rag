@@ -308,3 +308,7 @@ rag_backend/docs/*
 rag_backend/.env
 rag_backend/*.db
 rag_backend/logs/*
+
+# Docker e Database
+qdrant_data/
+rag_backend/data/
