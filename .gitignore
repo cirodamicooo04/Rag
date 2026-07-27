@@ -311,4 +311,4 @@ rag_backend/logs/*
 
 # Docker e Database
 qdrant_data/
-rag_backend/data/
+rag_backend/data/**
