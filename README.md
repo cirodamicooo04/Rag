@@ -16,7 +16,7 @@ Al momento, il sistema supporta esclusivamente l'upload di file di testo in form
 
 ## 1. Requisiti Preliminari
 
-1. **Docker e Docker Compose** installati sul sistema.
+1. **Docker** installato sul sistema.
 2. **Node.js** (opzionale, ma necessario se si vuole avviare l'interfaccia frontend SvelteKit in locale).
 3. **Chiave API di Groq**: 
    - Vai su [Groq Console](https://console.groq.com/keys) e crea una API Key gratuita.
@@ -75,11 +75,17 @@ Il frontend è sviluppato in SvelteKit e comunica con il backend e con Keycloak.
    ```bash
    npm run dev
    ```
-4. L'interfaccia utente sarà accessibile all'indirizzo mostrato nel terminale (solitamente `http://localhost:5173`).
+4. L'interfaccia utente sarà accessibile all'indirizzo mostrato nel terminale (default `http://localhost:5173`).
 
 ---
 
 ## 5. Utilizzo
 
-- **Gestione Documenti**: Dall'interfaccia (o tramite le API in Swagger), l'amministratore può caricare documenti. Il sistema accetta **solo file .txt**. Una volta caricato, il documento passa attraverso una pipeline che lo pulisce, lo divide in "chunk" e ne valuta la sicurezza tramite LLM. Eventuali blocchi malevoli vengono messi in quarantena.
-- **Chat**: L'utente finale può interrogare i documenti caricati. Prima di generare la risposta, la richiesta dell'utente ("prompt") viene filtrata (Prompt Injection check, classificazione dell'intento). La risposta generata viene anch'essa supervisionata ("LLM Judge") prima di essere mostrata.
+### Utenti Preconfigurati
+Il sistema importa automaticamente una configurazione base per Keycloak contenente due utenti già pronti per testare l'applicazione:
+- **Amministratore**: Username: `admin` | Password: `admin` (ha accesso alla dashboard per gestire i documenti e per visualizzare i logs)
+- **Utente Base**: Username: `user` | Password: `user` (può solo chattare)
+
+### Flusso dell'Applicazione
+- **Gestione Documenti**: Dall'interfaccia (loggandoti come `admin`), l'amministratore può caricare documenti. Il sistema accetta **solo file .txt**. Una volta caricato, il documento passa attraverso una pipeline che lo pulisce, lo divide in "chunk" e ne valuta la sicurezza tramite LLM. Eventuali blocchi malevoli vengono messi in quarantena.
+- **Chat**: L'utente finale (loggandoti come `user` o `admin`) può interrogare i documenti caricati. Prima di generare la risposta, la richiesta dell'utente ("prompt") viene filtrata (Prompt Injection check, classificazione dell'intento). La risposta generata viene anch'essa supervisionata ("LLM Judge") prima di essere mostrata.
