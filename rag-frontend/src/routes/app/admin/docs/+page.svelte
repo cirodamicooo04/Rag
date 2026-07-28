@@ -63,7 +63,7 @@
                         processingDocs = processingDocs.filter(d => d.fileHash !== doc.fileHash);
                         errorDocs.push(doc);
                         showToast(doc, false, true)
-                    } else if (doc.status !== "PROCESSING"){
+                    } else if (doc.status === "INDEXED" || doc.status === "PARTIALLY_INDEXED" || doc.status === "REJECTED_SECURITY"){
                         processingDocs = processingDocs.filter(d => d.fileHash !== doc.fileHash);
                         if (doc.status === "INDEXED"){
                             readyDocs.push(doc)
