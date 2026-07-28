@@ -10,7 +10,6 @@ from app.db.database import engine
 from app.db import models
 
 import app.core.ml_models
-from app.services import populate_guardrails
 
 #Creo tabelle se non esistono
 models.Base.metadata.create_all(bind=engine)
@@ -20,9 +19,12 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="RAG")
 
+import os
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

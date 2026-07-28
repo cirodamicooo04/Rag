@@ -12,20 +12,18 @@ INITIALIZE_GUARDRAILS_DB = False
 #============================================================
 
 #KEYCLOAK
-KEYCLOAK_URL = "http://localhost:8089"
-KEYCLOAK_REALM = "rag-system"
+KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://localhost:8089")
+KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "rag-system")
 KEYCLOAK_ISSUER = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}"
 KEYCLOAK_JWKS_URL = f"{KEYCLOAK_ISSUER}/protocol/openid-connect/certs"
 
 #============================================================
 
 #URL AND MODELS
-QDRANT_URL = "http://localhost:6333"
-COLLECTION_NAME = "rag_collection"
-GUARDRAILS_COLLECTION = "input_guardrails"
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME", "rag_collection")
 
-LLM_GUARD_MODEL = "meta-llama/Llama-Prompt-Guard-2-86M"
-LM_STUDIO_BASE_URL = "http://localhost:1234/v1"
+LLM_GUARD_MODEL = os.getenv("LLM_GUARD_MODEL", "meta-llama/Llama-Prompt-Guard-2-86M")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_LLM_MODEL = "openai/gpt-oss-120b"
 GROQ_INTENT_CLASSIFIER_MODEL = "llama-3.1-8b-instant"

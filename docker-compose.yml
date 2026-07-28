@@ -6,7 +6,7 @@ services:
       - 6333:6333
       - 6334:6334
     volumes:
-      - qdrant_data:/qdrant_storage
+      - ./qdrant_data:/qdrant/storage
 
   postgres:
     image: postgres:16
@@ -38,7 +38,25 @@ services:
       - "8089:8080"
     depends_on:
       - postgres
-  
+
+  backend:
+    build: ./rag_backend
+    container_name: rag-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - KEYCLOAK_URL=http://keycloak:8080
+      - QDRANT_URL=http://qdrant:6333
+      - CORS_ORIGINS=http://localhost:5173
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - HF_TOKEN=${HF_TOKEN}
+    volumes:
+      - ./rag_backend/data:/app/data
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      - qdrant
+      - keycloak
+
 volumes:
-  qdrant_data:
   postgres_data:
+  huggingface_cache:

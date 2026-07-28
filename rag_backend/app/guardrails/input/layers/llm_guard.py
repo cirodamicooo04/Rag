@@ -1,4 +1,5 @@
 from transformers import pipeline, AutoTokenizer
+import logging
 
 from app.core.config import LLM_GUARD_MODEL, HF_TOKEN
 
@@ -7,9 +8,15 @@ OVERLAP_TOKENS = 128
 SAFE_LABEL = "LABEL_0"
 SAFE_THRESHOLD = 0.8
 
-tokenizer = AutoTokenizer.from_pretrained(LLM_GUARD_MODEL)
+logger = logging.getLogger(__name__)
 
-classifier = pipeline("text-classification",model=LLM_GUARD_MODEL,tokenizer=tokenizer, token=HF_TOKEN)
+try:
+    tokenizer = AutoTokenizer.from_pretrained(LLM_GUARD_MODEL, token=HF_TOKEN)
+    classifier = pipeline("text-classification", model=LLM_GUARD_MODEL, tokenizer=tokenizer, token=HF_TOKEN)
+except Exception as e:
+    logger.warning(f"Failed to load Llama Guard model (invalid or missing HF_TOKEN?). The guardrail will be bypassed. Error: {e}")
+    tokenizer = None
+    classifier = None
 
 
 def split_into_chunks(text: str) -> list[str]:
@@ -33,6 +40,9 @@ def split_into_chunks(text: str) -> list[str]:
     return chunks
 
 def is_safe(query: str) -> bool:
+    if classifier is None or tokenizer is None:
+        return True
+
     chunks = split_into_chunks(query)
 
     for chunk in chunks:
