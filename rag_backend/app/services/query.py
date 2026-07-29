@@ -4,7 +4,7 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 from sqlalchemy.orm import Session
 
 from app.core.config import COLLECTION_NAME, TOP_K, STRUCTURED_PROMPT, UNTRUSTED_CONTEXT_SYSTEM_PROMPT
-from app.core.db_clients import qdrant_client
+from app.core.db_clients import qdrant_client, async_qdrant_client
 from app.core.ml_models import llm
 from app.crud.crud_docs import save_blocked_request
 from app.guardrails.input.input_policy import InputGuardrailDecision
@@ -15,7 +15,7 @@ from app.schemas.ask import RetrievedNode, AskResponse
 
 
 def get_retriever():
-    vector_store = QdrantVectorStore(client=qdrant_client, collection_name=COLLECTION_NAME)
+    vector_store = QdrantVectorStore(client=qdrant_client, aclient=async_qdrant_client, collection_name=COLLECTION_NAME)
     index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
 
     return index.as_retriever(similarity_top_k=TOP_K)
@@ -125,7 +125,7 @@ def serialize_retrieved_node(node_with_score, rank: int):
 
 
 
-def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
+async def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
     input_guardrail_result = validate_input_query(user_query)
     if user is None:
         user_id = "anonymous"
@@ -154,7 +154,7 @@ def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
     user_final_query = input_guardrail_result.final_text
 
     retriever = get_retriever()
-    nodes = retriever.retrieve(f"query: {user_final_query}")
+    nodes = await retriever.aretrieve(f"query: {user_final_query}")
 
     if not nodes:
         return "Nessun risultato trovato."
@@ -168,7 +168,7 @@ def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
     if UNTRUSTED_CONTEXT_SYSTEM_PROMPT:
         full_prompt = build_untrusted_context_prompt(context_chunks, user_final_query)
 
-    response = llm.complete(full_prompt)
+    response = await llm.acomplete(full_prompt)
 
     output_guardrail_result = validate_output(model_output=response.text, context=context_chunks)
 
