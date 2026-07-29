@@ -63,7 +63,8 @@ export async function apiFetch(path, options = {}) {
                 const data = JSON.parse(text);
                 message = data.detail || data.message || text;
                 if (Array.isArray(message)) {
-                    message = message.map(err => err.msg || err).join(", ");
+                    const uniqueErrors = [...new Set(message.map(err => err.msg || err))];
+                    message = uniqueErrors.join(", ");
                 } else if (typeof message === 'object') {
                     message = JSON.stringify(message);
                 }

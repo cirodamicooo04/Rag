@@ -55,6 +55,11 @@
             const savedDraft = sessionStorage.getItem(DRAFT_KEY);
             if (savedDraft) {
                 let parsedMessages = JSON.parse(savedDraft);
+                parsedMessages.forEach((m, i) => {
+                    if (typeof m.sequence_number !== 'number' || isNaN(m.sequence_number)) {
+                        m.sequence_number = i + 1;
+                    }
+                });
                 parsedMessages.sort((a, b) => a.sequence_number - b.sequence_number);
                 sequence_number = parsedMessages.length > 0 ? Math.max(...parsedMessages.map(m => m.sequence_number)) : 0;
                 messages = parsedMessages;
@@ -128,7 +133,7 @@
             //puliamo il sessionStorage dato che l'abbiamo salvata sul DB
             sessionStorage.removeItem(DRAFT_KEY);
         } catch (e){
-            saving_conversations_error = e.message
+            saving_conversations_error = "Error while saving conversation: " + e.message
             console.error(e)
         } finally {
             saving_conversations_loading = false
