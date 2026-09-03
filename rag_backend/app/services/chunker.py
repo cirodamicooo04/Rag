@@ -41,6 +41,14 @@ def split_long_text_by_tokens(text: str) -> List[str]:
     for start in range(0, len(token_ids), step):
         window = token_ids[start:start + MAX_TOKENS]
         chunk = tokenizer.decode(window, skip_special_tokens=True).strip()
+
+        #Decodificare e ritokenizzare puo' produrre piu' token della finestra originale:
+        #restringiamo la finestra finche' il testo emesso non rientra in MAX_TOKENS.
+        #Il troncamento e' coperto dall'overlap della finestra successiva.
+        while chunk and count_tokens(chunk) > MAX_TOKENS:
+            window = window[:-1]
+            chunk = tokenizer.decode(window, skip_special_tokens=True).strip()
+
         if chunk:
             chunks.append(chunk)
 
@@ -56,7 +64,6 @@ def semantic_chunk(text: str) -> List[str]:
 
     chunks = []
     current_chunk = []
-    current_tokens = 0
 
     for paragraph in paragraphs:
         #Isoliamo ogni singola frase per paragrafo
@@ -70,13 +77,17 @@ def semantic_chunk(text: str) -> List[str]:
                 if current_chunk:
                     chunks.append(" ".join(current_chunk))
                     current_chunk = []
-                    current_tokens = 0
 
                 chunks.extend(split_long_text_by_tokens(sentence))
                 continue
 
+            #Contiamo i token sul testo effettivamente unito e non sulla somma delle singole
+            #frasi: il tokenizer non e' additivo sulla concatenazione, e sommare i conteggi
+            #sottostima la lunghezza reale del chunk emesso.
+            candidate_tokens = count_tokens(" ".join(current_chunk + [sentence]))
+
             #Se abbiamo superato i token massimi dobbiamo chiudere il chunk attuale
-            if current_tokens + sentence_tokens > MAX_TOKENS:
+            if candidate_tokens > MAX_TOKENS:
                 if current_chunk:
                     #Chiudiamo il current chunk
                     chunks.append(" ".join(current_chunk))
@@ -90,11 +101,21 @@ def semantic_chunk(text: str) -> List[str]:
 
                     overlap_string = tokenizer.decode(overlap_tokens) #Li trasformiamo di nuovo in testo
                     current_chunk = [overlap_string] #Li mettiamo come punto di partenza per il prossimo chunk
-                    current_tokens = count_tokens(overlap_string) #Aggiorniamo i token correnti
+
+                    #L'overlap potrebbe non lasciare spazio sufficiente alla frase corrente
+                    candidate_tokens = count_tokens(" ".join(current_chunk + [sentence]))
+                    if candidate_tokens > MAX_TOKENS:
+                        #Se anche da sola la frase non rientra, la spezziamo per token
+                        if sentence_tokens > MAX_TOKENS:
+                            current_chunk = []
+                            chunks.extend(split_long_text_by_tokens(sentence))
+                            continue
+
+                        #Altrimenti scartiamo l'overlap: è già contenuto nel chunk appena chiuso
+                        current_chunk = []
 
             # Altrimenti aggiungiamo normalmente al chunk corrente
             current_chunk.append(sentence)
-            current_tokens += sentence_tokens
 
     #Aggiungiamo eventuali pezzi rimasti
     if current_chunk:

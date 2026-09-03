@@ -10,7 +10,7 @@ def validate_input_query(query: str) -> InputGuardrailResult:
     normalized_query = original_query
     llm_guard_safe = True
     intent_classifier_result = IntentClassifierResult(
-        intent=IntentCategory.UNKNOWN,
+        intent=IntentCategory.RAG_QUERY,
         confidence=0.0,
         reason="Intent classifier non eseguito.",
         raw_response=None,

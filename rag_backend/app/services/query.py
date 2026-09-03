@@ -149,7 +149,7 @@ async def get_answer(user_query: str, user: dict, db: Session, debug: bool = Fal
         return AskResponse(answer="Non posso soddisfare questa richiesta in quanto vìola le policy di sicurezza.")
 
     if input_guardrail_result.decision == InputGuardrailDecision.ALLOW_GENERAL_CHAT:
-        return AskResponse(answer="Ciao, posso aiutarti con qualsiasi domanda riguardare il corso di studi in informatica dell'Unical!")
+        return AskResponse(answer="Ciao, posso aiutarti con qualsiasi domanda riguardante il corso di studi in informatica dell'Unical!")
 
     user_final_query = input_guardrail_result.final_text
 

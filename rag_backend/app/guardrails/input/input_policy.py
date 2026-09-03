@@ -39,7 +39,6 @@ def decide(original_query: str, normalized_query: str, llm_guard_safe:bool, inte
         return InputGuardrailResult(decision=InputGuardrailDecision.ALLOW_GENERAL_CHAT,
                                     original_query=original_query,
                                     final_text=normalized_query,
-                                    blocked_by="Intent Classifier",
                                     reasons=f"Intent classificato come GENERAL_CHAT with confidence {intent_classifier_result.confidence}")
 
     if intent_classifier_result.intent == IntentCategory.PROMPT_INJECTION:
@@ -71,4 +70,10 @@ def decide(original_query: str, normalized_query: str, llm_guard_safe:bool, inte
                                     blocked_by="Intent Classifier",
                                     reasons=f"Intent sconosciuto o classificazione non valida")
 
-    return InputGuardrailResult(decision=InputGuardrailDecision.ALLOW, original_query=original_query, final_text=normalized_query, reasons="Query valida")
+    #Fail-closed: se l'intent non rientra in nessuna categoria gestita, la query non e' stata
+    #classificata e non possiamo considerarla valida
+    return InputGuardrailResult(decision=InputGuardrailDecision.BLOCK,
+                                original_query=original_query,
+                                final_text=normalized_query,
+                                blocked_by="Intent Classifier",
+                                reasons=f"Intent non gestito: {intent_classifier_result.intent!r}")

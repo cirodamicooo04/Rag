@@ -1,5 +1,6 @@
 <script>
     import {Alert, Badge, Button, Input, Modal, ModalBody, ModalFooter, ModalHeader, Collapse} from "@sveltestrap/sveltestrap"
+    import MarkdownContent from "$lib/components/MarkdownContent.svelte"
     import {ask, askDebug} from "$lib/api/ask.js"
     import {getConversation, save_conversation} from "$lib/api/conversation.js"
     import {getRoles} from "$lib/auth/keycloak.js"
@@ -243,7 +244,11 @@
                             </Alert>
                         {:else}
                             <div class:user-bubble={message.role === "user"} class="message-bubble">
-                                {message.content}
+                                {#if message.role === "assistant"}
+                                    <MarkdownContent content={message.content} />
+                                {:else}
+                                    {message.content}
+                                {/if}
 
                                 {#if message.debug_info}
                                     <div class="mt-3">
