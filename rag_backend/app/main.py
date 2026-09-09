@@ -5,7 +5,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.api.admin_endpoints import router
 from app.api.user_endpoints import user_router
-from app.core.config import UPLOAD_DIR, INITIALIZE_GUARDRAILS_DB
+from app.core.config import UPLOAD_DIR
 from app.db.database import engine
 from app.db import models
 
@@ -17,14 +17,15 @@ models.Base.metadata.create_all(bind=engine)
 #Creo la cartella docs per i file caricati
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(title="RAG")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
 
-import os
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+app = FastAPI(title="RAG", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

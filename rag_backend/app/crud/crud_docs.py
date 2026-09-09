@@ -1,3 +1,7 @@
+from datetime import datetime, timedelta
+
+from sqlalchemy import or_
+
 from app.db.models import Chunk, Conversation, BlockedRequest, ConversationMessage
 
 from app.db.models import Document
@@ -137,6 +141,37 @@ def get_chunk_by_id(db, chunk_id):
 def get_logs(db):
     return db.query(BlockedRequest).all()
 
+
+# Markers of a genuine security event, matched case-insensitively against the
+# stored reason.  A topical refusal (out_of_scope, low confidence, unsupported
+# answer) is NOT a security event: counting it made a student who asked a few
+# off-topic questions look like an attacker to the ASP risk rules.
+_SECURITY_EVENT_MARKERS = (
+    "llm_guard",
+    "prompt_injection",
+    "system_info_request",
+    "security_classifier_conflict",
+    "system_prompt_leakage",
+    "instruction_following_attack",
+)
+
+
+def count_recent_security_events(db, user_id: str, hours: int = 24) -> int:
+    """Security-relevant blocks for `user_id` inside the trailing window."""
+    if not user_id or user_id == "anonymous":
+        return 0
+    cutoff = datetime.now() - timedelta(hours=max(1, hours))
+    query = (
+        db.query(BlockedRequest)
+        .filter(BlockedRequest.user_id == user_id)
+        .filter(BlockedRequest.created_at >= cutoff)
+    )
+    markers = [
+        BlockedRequest.reason.ilike(f"%{marker}%")
+        for marker in _SECURITY_EVENT_MARKERS
+    ]
+    return query.filter(or_(*markers)).count()
+
 def clear_logs(db):
     db.query(BlockedRequest).delete()
     db.commit()
@@ -189,4 +224,3 @@ def prepare_error_document_for_processing(db, file_hash):
     db.commit()
     db.refresh(document)
     return document
-

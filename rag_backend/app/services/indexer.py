@@ -21,7 +21,8 @@ def index(chunks: list[Chunk]):
                          "category": c.category,
                          "source_url": c.source_url,
                          "scraping_date": c.scraping_date,
-                         "scope": c.scope
+                         "scope": c.scope,
+                         "security_status": "safe",
                      }))
 
     client = qdrant_client

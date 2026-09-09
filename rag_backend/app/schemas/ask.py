@@ -19,5 +19,6 @@ class AskResponse(CamelModel):
     original_query: Optional[str] = None
     final_query: Optional[str] = None
     retrieved_context: Optional[List[RetrievedNode]] = None
+    asp_debug: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(from_attributes=True)
