@@ -2,6 +2,7 @@
     import {Alert, Badge, Button, Input, Modal, ModalBody, ModalFooter, ModalHeader, Collapse} from "@sveltestrap/sveltestrap"
     import MarkdownContent from "$lib/components/MarkdownContent.svelte"
     import {ask, askDebug} from "$lib/api/ask.js"
+    import AspDebugPanel from "$lib/components/AspDebugPanel.svelte"
     import {getConversation, save_conversation} from "$lib/api/conversation.js"
     import {getRoles} from "$lib/auth/keycloak.js"
     import {page} from "$app/state"
@@ -273,6 +274,12 @@
                                                             </li>
                                                         {/each}
                                                     </ul>
+                                                {/if}
+                                                {#if message.debug_info.aspDebug}
+                                                    <div class="mt-2"><strong>ASP control plane:</strong></div>
+                                                    <AspDebugPanel title="Stage: Input" record={message.debug_info.aspDebug.input} />
+                                                    <AspDebugPanel title="Stage: Retrieval" record={message.debug_info.aspDebug.retrieval} />
+                                                    <AspDebugPanel title="Stage: Output" record={message.debug_info.aspDebug.output} />
                                                 {/if}
                                             </div>
                                         </Collapse>

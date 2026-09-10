@@ -66,7 +66,11 @@ async def retry_processing_document(file_hash: str, background_tasks: Background
     if document.status != "ERROR":
         raise HTTPException(status_code=400, detail=f"Document with hash: {file_hash} is not in error status")
 
-    #Cancello eventuali chunk creati di quel file e svuoto text
+    try:
+        indexer.remove_index(file_hash)
+    except Exception as e:
+        print(f"Warning: Failed to clean up partial vectors in Qdrant: {e}")
+
     new_document = crud_docs.prepare_error_document_for_processing(db, file_hash)
 
     background_tasks.add_task(process_document_pipeline, file_hash, new_document.file_path)
@@ -218,7 +222,7 @@ async def ask_query_debug(request: AskRequest, db: Session = Depends(get_db), us
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
     try:
-        answer = query.get_answer(user_query=question,user=user, db=db , debug=True)
+        answer = await query.get_answer(user_query=question,user=user, db=db , debug=True)
 
         return answer
     except Exception as e:
@@ -359,12 +363,18 @@ def delete_document(doc_hash: str,db: Session = Depends(get_db)):
     if not document:
         raise HTTPException(status_code=404, detail=f"Document with hash: {doc_hash} not found")
 
+    file_to_delete = Path(document.file_path)
+
     indexed_chunks = crud_docs.get_indexed_chunks_by_doc_hash(db, doc_hash)
 
     try:
         if indexed_chunks: #Ci sono chunks indicizzati
             indexer.remove_index(doc_hash) #Rimuovo dall'index
         crud_docs.delete_document(db, doc_hash)
+
+        if file_to_delete.exists():
+            file_to_delete.unlink()
+
         return {"message": "Document deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting document: {e}")

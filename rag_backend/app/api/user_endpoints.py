@@ -20,7 +20,7 @@ async def ask_query(request: AskRequest, db: Session = Depends(get_db), user: di
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
     try:
-        answer = get_answer(user_query=question, user=user , db=db)
+        answer = await get_answer(user_query=question, user=user , db=db)
 
         return answer
     except Exception as e:

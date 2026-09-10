@@ -10,7 +10,7 @@ from app.core.config import (
     ASP_MAX_GENERATION_ATTEMPTS, ASP_SECURITY_EVENT_WINDOW_HOURS,
     CONTEXT_CONSISTENCY_CONTROL,
 )
-from app.core.db_clients import qdrant_client
+from app.core.db_clients import qdrant_client, async_qdrant_client
 from app.core.ml_models import llm
 from app.crud.crud_docs import save_blocked_request, count_recent_security_events
 from app.guardrails.input.input_policy import InputGuardrailDecision
@@ -25,7 +25,7 @@ from app.schemas.ask import RetrievedNode, AskResponse
 
 
 def get_retriever(top_k: int = TOP_K):
-    vector_store = QdrantVectorStore(client=qdrant_client, collection_name=COLLECTION_NAME)
+    vector_store = QdrantVectorStore(client=qdrant_client, aclient=async_qdrant_client, collection_name=COLLECTION_NAME)
     index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
 
     return index.as_retriever(similarity_top_k=top_k)
@@ -177,7 +177,7 @@ def _privileged_debug_summary() -> str:
 
 
 
-def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
+async def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
     if user is None:
         user_id = "anonymous"
     else:
@@ -217,7 +217,7 @@ def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
 
     if input_guardrail_result.decision == InputGuardrailDecision.ALLOW_GENERAL_CHAT:
         return AskResponse(
-            answer="Ciao, posso aiutarti con qualsiasi domanda riguardare il corso di studi in informatica dell'Unical!",
+            answer="Ciao, posso aiutarti con qualsiasi domanda riguardante il corso di studi in informatica dell'Unical!",
             asp_debug={"input": input_guardrail_result.asp_policy} if debug else None,
         )
 
@@ -253,7 +253,7 @@ def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
     )
     for retrieval_attempt in range(1, ASP_MAX_RETRIEVAL_ATTEMPTS + 1):
         retriever = get_retriever(TOP_K * retrieval_attempt)
-        nodes = retriever.retrieve(f"query: {user_final_query}")
+        nodes = await retriever.aretrieve(f"query: {user_final_query}")
         retrieval_signals = _retrieval_signals(nodes)
         if CONTEXT_CONSISTENCY_CONTROL:
             context_consistency = assess_context(
@@ -316,7 +316,7 @@ def get_answer(user_query: str, user: dict, db: Session, debug: bool = False):
         if generation_attempt > 1:
             full_prompt += "\n\nLa risposta precedente non ha superato la verifica: rigenera una risposta strettamente supportata dal contesto."
 
-        response = llm.complete(full_prompt)
+        response = await llm.acomplete(full_prompt)
         output_guardrail_result = validate_output(
             model_output=response.text,
             context=context_chunks,

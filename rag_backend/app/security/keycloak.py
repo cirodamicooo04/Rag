@@ -5,10 +5,23 @@ from fastapi import HTTPException, status
 from app.core.config import KEYCLOAK_ISSUER, KEYCLOAK_JWKS_URL
 
 
-jwks = requests.get(KEYCLOAK_JWKS_URL).json()
+_jwks = None
+
+def get_jwks():
+    global _jwks
+    if _jwks is None:
+        try:
+            _jwks = requests.get(KEYCLOAK_JWKS_URL).json()
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Impossibile contattare Keycloak: {str(e)}"
+            )
+    return _jwks
 
 
 def decode_token(token: str) -> dict:
+    jwks = get_jwks()
     try:
         payload = jwt.decode(
             token,
@@ -22,5 +35,5 @@ def decode_token(token: str) -> dict:
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token not valid"
+            detail="Token non valido"
         )
