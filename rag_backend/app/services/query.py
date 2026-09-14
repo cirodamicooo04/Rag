@@ -170,7 +170,7 @@ async def get_answer(user_query: str, user: dict, db: Session, debug: bool = Fal
 
     response = await llm.acomplete(full_prompt)
 
-    output_guardrail_result = validate_output(model_output=response.text, context=context_chunks)
+    output_guardrail_result = validate_output(model_output=response.text, context=context_chunks, user_query=user_final_query)
 
     if output_guardrail_result.decision == OutputGuardrailDecision.BLOCK:
         print(f"Blocked by: {output_guardrail_result.blocked_by}, reason: {output_guardrail_result.reason}.")

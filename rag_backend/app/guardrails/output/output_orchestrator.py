@@ -3,7 +3,7 @@ from app.guardrails.output.output_policy import OutputGuardrailResult, decide
 from app.guardrails.output.layers.llm_judge import judge, OutputJudgeResult, OutputCategory
 
 
-def validate_output(model_output: str, context: list[str]) -> OutputGuardrailResult:
+def validate_output(model_output: str, context: list[str], user_query: str) -> OutputGuardrailResult:
     llm_judge_response = OutputJudgeResult(
         category=OutputCategory.SAFE,
         confidence=1.0,
@@ -11,7 +11,7 @@ def validate_output(model_output: str, context: list[str]) -> OutputGuardrailRes
     )
 
     if LLM_JUDGE_CONTROL:
-        llm_judge_response = judge(model_output, context)
+        llm_judge_response = judge(model_output, context, user_query)
 
     return decide(model_output,llm_judge_response)
 
