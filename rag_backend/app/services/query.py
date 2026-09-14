@@ -320,6 +320,7 @@ async def get_answer(user_query: str, user: dict, db: Session, debug: bool = Fal
         output_guardrail_result = validate_output(
             model_output=response.text,
             context=context_chunks,
+            user_query=user_final_query,
             input_intent=input_guardrail_result.intent,
             input_confidence=input_guardrail_result.intent_confidence,
             generation_attempt=generation_attempt,
